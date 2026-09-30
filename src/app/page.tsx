@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
-import { useDashboardSummary, useCreateMeeting, useMe } from "@/lib/hooks";
+import { useDashboardSummary, useCreateMeeting, useMe, useMeeting } from "@/lib/hooks";
 import { formatMeetingId, initials, avatarColor, urlMeetingId } from "@/lib/utils";
-import { getActiveMeetingId } from "@/lib/activeMeeting";
+import { getActiveMeetingId, clearActiveMeeting } from "@/lib/activeMeeting";
 import { format } from "date-fns";
 import {
   Copy,
@@ -35,6 +35,9 @@ export default function HomePage() {
     return () => clearInterval(t);
   }, []);
   // Active meeting → first tile becomes "Back to Meeting" (Zoom parity).
+  // The stored id is validated against the backend: a stale entry (ended,
+  // deleted, or never-created meeting) is cleared and the normal
+  // "New Meeting" tile is shown instead.
   const [activeId, setActiveId] = useState<string | null>(null);
   useEffect(() => {
     const sync = () => setActiveId(getActiveMeetingId());
@@ -42,6 +45,20 @@ export default function HomePage() {
     window.addEventListener("focus", sync);
     return () => window.removeEventListener("focus", sync);
   }, []);
+  const { data: storedMeeting, error: storedError } = useMeeting(activeId ?? "", !!activeId);
+  useEffect(() => {
+    if (storedError && activeId) {
+      clearActiveMeeting();
+      setActiveId(null);
+    }
+  }, [storedError, activeId]);
+  useEffect(() => {
+    if (storedMeeting && storedMeeting.status === "ended" && activeId) {
+      clearActiveMeeting();
+      setActiveId(null);
+    }
+  }, [storedMeeting, activeId]);
+  const showBackTile = !!activeId && !!storedMeeting && storedMeeting.status !== "ended";
 
   const HOST_NAME = me?.displayName ?? "Ketan Arora";
   const HOST_EMAIL = me?.email ?? "ketan.arora019@gmail.com";
@@ -267,8 +284,8 @@ export default function HomePage() {
           {/* Quick actions */}
           <div className="bg-white rounded-2xl border border-[#ebebeb] p-6 shadow-sm">
             <div className="grid grid-cols-3 gap-1">
-              {/* New Meeting — becomes Back to Meeting while active (Zoom parity) */}
-              {activeId ? (
+              {/* New Meeting — becomes Back to Meeting while a LIVE meeting is active */}
+              {showBackTile ? (
                 <button
                   onClick={() => router.push(`/room/${activeId}`)}
                   className="flex flex-col items-center gap-2 group"

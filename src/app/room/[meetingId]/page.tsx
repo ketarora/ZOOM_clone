@@ -18,7 +18,7 @@ import {
   useRemoveParticipant,
 } from "@/lib/hooks";
 import { formatMeetingId, formatElapsed, urlMeetingId } from "@/lib/utils";
-import { setActiveMeetingId, clearActiveMeeting } from "@/lib/activeMeeting";
+import { setActiveMeetingId, clearActiveMeeting, getActiveMeetingId } from "@/lib/activeMeeting";
 import {
   Mic, MicOff, Video, VideoOff, PhoneOff, Users, MessageCircle, Heart,
   Monitor, MoreHorizontal, ShieldCheck, ChevronUp, X, Send, Maximize2,
@@ -127,10 +127,23 @@ export default function MeetingRoomPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Register presence for the floating mini-window + Back to Meeting tile.
+  // Register presence ONLY once the backend confirms the meeting is live.
+  // (Storing on timer alone created ghost "Back to Meeting" entries for
+  // meetings that never validated.)
   useEffect(() => {
-    if (phase === "active" && apiId) setActiveMeetingId(apiId);
-  }, [phase, apiId]);
+    if (phase === "active" && apiId && meeting && meeting.status !== "ended") {
+      setActiveMeetingId(apiId);
+    }
+  }, [phase, apiId, meeting]);
+
+  // Self-heal: landed on a dead/unknown meeting that matches stored
+  // presence (e.g. followed a stale Back-to-Meeting link) → clear it so
+  // Home goes back to showing "New Meeting".
+  useEffect(() => {
+    if ((meetingError || meeting?.status === "ended") && getActiveMeetingId() === apiId) {
+      clearActiveMeeting();
+    }
+  }, [meetingError, meeting, apiId]);
 
   useEffect(() => {
     if (phase !== "active") return;

@@ -3,8 +3,8 @@
 import TopNav from "./TopNav";
 import Sidebar from "./Sidebar";
 import MiniMeetingWindow from "../meeting/MiniMeetingWindow";
-import { getActiveMeetingId } from "@/lib/activeMeeting";
-import { useMe } from "@/lib/hooks";
+import { getActiveMeetingId, clearActiveMeeting } from "@/lib/activeMeeting";
+import { useMe, useMeeting } from "@/lib/hooks";
 import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 
@@ -38,8 +38,25 @@ export default function AppLayout({
     };
   }, []);
 
+  // Validate stored presence: a stale id (ended/deleted meeting, wiped DB)
+  // must never produce a floating window. Clear it on sight.
+  const { data: activeMeeting, error: activeError } = useMeeting(activeId ?? "", !!activeId);
+  useEffect(() => {
+    if (activeError && activeId) {
+      clearActiveMeeting();
+      setActiveId(null);
+    }
+  }, [activeError, activeId]);
+  useEffect(() => {
+    if (activeMeeting && activeMeeting.status === "ended" && activeId) {
+      clearActiveMeeting();
+      setActiveId(null);
+    }
+  }, [activeMeeting, activeId]);
+
   const inRoom = pathname?.startsWith("/room/") ?? false;
-  const showMini = !!activeId && !inRoom && !miniHidden;
+  const showMini =
+    !!activeId && !inRoom && !miniHidden && !!activeMeeting && activeMeeting.status !== "ended";
 
   return (
     <div className="flex flex-col h-screen bg-[#F5F5F5] overflow-hidden">
