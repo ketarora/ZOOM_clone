@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
 import { useDashboardSummary, useCreateMeeting, useMe } from "@/lib/hooks";
 import { formatMeetingId, initials, avatarColor, urlMeetingId } from "@/lib/utils";
+import { getActiveMeetingId } from "@/lib/activeMeeting";
 import { format } from "date-fns";
 import {
   Copy,
@@ -15,6 +16,7 @@ import {
   MessageCircle,
   Check,
   Loader2,
+  Undo2,
 } from "lucide-react";
 
 const BRAND = "#0B5CFF";
@@ -26,6 +28,20 @@ export default function HomePage() {
   const { data: summary, isLoading } = useDashboardSummary();
   const { data: me } = useMe();
   const createMeeting = useCreateMeeting();
+  // Live clock (Zoom home shows time + date prominently).
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  // Active meeting → first tile becomes "Back to Meeting" (Zoom parity).
+  const [activeId, setActiveId] = useState<string | null>(null);
+  useEffect(() => {
+    const sync = () => setActiveId(getActiveMeetingId());
+    sync();
+    window.addEventListener("focus", sync);
+    return () => window.removeEventListener("focus", sync);
+  }, []);
 
   const HOST_NAME = me?.displayName ?? "Ketan Arora";
   const HOST_EMAIL = me?.email ?? "ketan.arora019@gmail.com";
@@ -85,6 +101,16 @@ export default function HomePage() {
               {actionError}
             </div>
           )}
+
+          {/* Clock / date panel (Zoom home parity) */}
+          <div className="bg-white rounded-2xl border border-[#ebebeb] p-6 shadow-sm text-center">
+            <p className="text-4xl font-bold text-[#1a1a1a] tracking-tight tabular-nums">
+              {format(now, "h:mm a")}
+            </p>
+            <p className="text-[14px] text-[#666] mt-1">
+              {format(now, "EEEE, MMMM d")}
+            </p>
+          </div>
 
           {/* Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -241,19 +267,34 @@ export default function HomePage() {
           {/* Quick actions */}
           <div className="bg-white rounded-2xl border border-[#ebebeb] p-6 shadow-sm">
             <div className="grid grid-cols-3 gap-1">
-              {/* New Meeting */}
-              <button
-                onClick={handleNewMeeting}
-                className="flex flex-col items-center gap-2 group"
-                disabled={createMeeting.isPending}
-              >
-                <div className="w-12 h-12 bg-[#fe7521] rounded-[18px] flex items-center justify-center text-white shadow-sm group-hover:bg-[#e05b2b] transition-colors">
-                  <Video size={20} />
-                </div>
-                <span className="text-[12px] font-medium text-[#666487] group-hover:text-[#0b6bde] transition-colors">
-                  {createMeeting.isPending ? "Starting…" : "New Meeting"}
-                </span>
-              </button>
+              {/* New Meeting — becomes Back to Meeting while active (Zoom parity) */}
+              {activeId ? (
+                <button
+                  onClick={() => router.push(`/room/${activeId}`)}
+                  className="flex flex-col items-center gap-2 group"
+                >
+                  <div className="w-12 h-12 bg-[#fe7521] rounded-[18px] flex items-center justify-center text-white shadow-sm group-hover:bg-[#e05b2b] transition-colors relative">
+                    <Undo2 size={20} />
+                    <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#16a34a] rounded-full border-2 border-white" />
+                  </div>
+                  <span className="text-[12px] font-medium text-[#666487] group-hover:text-[#0b6bde] transition-colors">
+                    Back to Meeting
+                  </span>
+                </button>
+              ) : (
+                <button
+                  onClick={handleNewMeeting}
+                  className="flex flex-col items-center gap-2 group"
+                  disabled={createMeeting.isPending}
+                >
+                  <div className="w-12 h-12 bg-[#fe7521] rounded-[18px] flex items-center justify-center text-white shadow-sm group-hover:bg-[#e05b2b] transition-colors">
+                    <Video size={20} />
+                  </div>
+                  <span className="text-[12px] font-medium text-[#666487] group-hover:text-[#0b6bde] transition-colors">
+                    {createMeeting.isPending ? "Starting…" : "New Meeting"}
+                  </span>
+                </button>
+              )}
 
               {/* Join */}
               <button

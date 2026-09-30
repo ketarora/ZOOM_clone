@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
-import { useMeetings, useDeleteMeeting, useCreateMeeting } from "@/lib/hooks";
-import { formatMeetingId, urlMeetingId } from "@/lib/utils";
+import { useMeetings, useDeleteMeeting, useCreateMeeting, useMe } from "@/lib/hooks";
+import { formatMeetingId, urlMeetingId, personalMeetingId } from "@/lib/utils";
+import CopyInviteModal from "@/components/meeting/CopyInviteModal";
 import { format } from "date-fns";
 import {
   Video,
@@ -16,6 +17,8 @@ import {
   Search,
   Clock,
   Users,
+  Copy,
+  Check,
 } from "lucide-react";
 import type { Meeting, MeetingFilter } from "@/lib/api";
 
@@ -32,6 +35,17 @@ export default function MeetingsPage() {
   const { data, isLoading, error } = useMeetings(filter);
   const deleteMeeting = useDeleteMeeting();
   const createMeeting = useCreateMeeting();
+  const { data: me } = useMe();
+  const [inviteFor, setInviteFor] = useState<Meeting | null>(null);
+  const [pmiCopied, setPmiCopied] = useState(false);
+  const PMI = me ? formatMeetingId(personalMeetingId(me.id)) : "—";
+
+  const copyPMI = () => {
+    if (!me) return;
+    navigator.clipboard.writeText(PMI.replace(/\s/g, "")).catch(() => {});
+    setPmiCopied(true);
+    setTimeout(() => setPmiCopied(false), 2000);
+  };
 
   // Backend returns a plain array (pagination in response headers).
   const rawMeetings: Meeting[] = Array.isArray(data) ? data : [];
@@ -88,6 +102,30 @@ export default function MeetingsPage() {
                 <Plus size={14} />
               )}
               New Meeting
+            </button>
+          </div>
+        </div>
+
+        {/* PMI card (Zoom Meetings-page parity) */}
+        <div className="bg-white rounded-2xl border border-[#ebebeb] shadow-sm overflow-hidden mb-5">
+          <div className="bg-[#0B5CFF] px-6 py-5 text-center">
+            <p className="text-white font-mono text-xl font-bold tracking-wider">{PMI}</p>
+            <p className="text-white/80 text-[12px] mt-0.5">My Personal Meeting ID (PMI)</p>
+          </div>
+          <div className="flex items-center justify-center gap-2 px-6 py-4">
+            <button
+              onClick={handleNewMeeting}
+              disabled={createMeeting.isPending}
+              className="px-5 py-2 bg-[#0B5CFF] text-white text-[13px] font-semibold rounded-lg hover:bg-[#0047cc] transition-colors disabled:opacity-60"
+            >
+              Start
+            </button>
+            <button
+              onClick={copyPMI}
+              className="flex items-center gap-1.5 px-4 py-2 border border-[#ddd] rounded-lg text-[13px] font-medium text-[#333] hover:bg-[#f5f5f5] transition-colors"
+            >
+              {pmiCopied ? <Check size={14} className="text-[#16a34a]" /> : <Copy size={14} />}
+              {pmiCopied ? "Copied!" : "Copy Invitation"}
             </button>
           </div>
         </div>
@@ -207,6 +245,13 @@ export default function MeetingsPage() {
                       </button>
                     )}
                     <button
+                      onClick={() => setInviteFor(m)}
+                      className="p-2 text-[#999] hover:text-[#0B5CFF] hover:bg-[#eef5ff] rounded-lg transition-colors"
+                      title="Copy invitation"
+                    >
+                      <Copy size={15} />
+                    </button>
+                    <button
                       onClick={() => deleteMeeting.mutate(m.meetingId)}
                       disabled={deleteMeeting.isPending}
                       className="p-2 text-[#999] hover:text-[#e03e3e] hover:bg-[#fff0f0] rounded-lg transition-colors disabled:opacity-50"
@@ -221,6 +266,9 @@ export default function MeetingsPage() {
           )}
         </div>
       </div>
+      {inviteFor && (
+        <CopyInviteModal meeting={inviteFor} onClose={() => setInviteFor(null)} />
+      )}
     </AppLayout>
   );
 }

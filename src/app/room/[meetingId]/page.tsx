@@ -18,11 +18,12 @@ import {
   useRemoveParticipant,
 } from "@/lib/hooks";
 import { formatMeetingId, formatElapsed, urlMeetingId } from "@/lib/utils";
+import { setActiveMeetingId, clearActiveMeeting } from "@/lib/activeMeeting";
 import {
-  Mic, MicOff, Video, VideoOff, PhoneOff, Users, MessageCircle, Smile,
+  Mic, MicOff, Video, VideoOff, PhoneOff, Users, MessageCircle, Heart,
   Monitor, MoreHorizontal, ShieldCheck, ChevronUp, X, Send, Maximize2,
   LayoutGrid, Hand, Shield, Settings, RotateCcw, Check, Copy, Loader2,
-  VolumeX, UserX,
+  VolumeX, UserX, Info, Paperclip,
 } from "lucide-react";
 
 interface ChatMessage {
@@ -78,6 +79,7 @@ export default function MeetingRoomPage() {
   const [chatInput, setChatInput] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [showEndDialog, setShowEndDialog] = useState(false);
+  const [giveFeedbackOpt, setGiveFeedbackOpt] = useState(true);
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackRating, setFeedbackRating] = useState(0);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
@@ -124,6 +126,11 @@ export default function MeetingRoomPage() {
     const timer = setTimeout(() => setPhase("active"), 1800);
     return () => clearTimeout(timer);
   }, []);
+
+  // Register presence for the floating mini-window + Back to Meeting tile.
+  useEffect(() => {
+    if (phase === "active" && apiId) setActiveMeetingId(apiId);
+  }, [phase, apiId]);
 
   useEffect(() => {
     if (phase !== "active") return;
@@ -243,27 +250,37 @@ export default function MeetingRoomPage() {
   };
 
   const handleEnd = async () => {
+    clearActiveMeeting();
     try {
       await endMeeting.mutateAsync(apiId);
     } catch {
       // already ended on the server — still exit cleanly
     }
     setShowEndDialog(false);
-    setPhase("ended");
-    setShowFeedback(true);
     stopMedia();
+    if (giveFeedbackOpt) {
+      setPhase("ended");
+      setShowFeedback(true);
+    } else {
+      router.push("/");
+    }
   };
 
   const handleLeave = async () => {
+    clearActiveMeeting();
     try {
       await leaveMeeting.mutateAsync({ id: apiId, displayName: HOST_NAME });
     } catch {
       // leaving a missing meeting still exits cleanly
     }
     setShowEndDialog(false);
-    setPhase("ended");
-    setShowFeedback(true);
     stopMedia();
+    if (giveFeedbackOpt) {
+      setPhase("ended");
+      setShowFeedback(true);
+    } else {
+      router.push("/");
+    }
   };
 
   // ── Meeting validation gates (spec: never show a blank/broken room) ─────
@@ -362,8 +379,14 @@ export default function MeetingRoomPage() {
     <div className="fixed inset-0 bg-[#161616] flex flex-col overflow-hidden select-none font-sans">
 
       {/* Close-all overlay when any menu is open */}
-      {(showMoreMenu || showViewMenu || showInfoPanel || showReactionPicker) && (
-        <div className="fixed inset-0 z-40" onClick={closeAllMenus} />
+      {(showMoreMenu || showViewMenu || showInfoPanel || showReactionPicker || panel === "security") && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => {
+            closeAllMenus();
+            if (panel === "security") setPanel("none");
+          }}
+        />
       )}
 
       {/* Floating reactions */}
@@ -382,9 +405,11 @@ export default function MeetingRoomPage() {
 
       {/* ── Top bar ──────────────────────────────────────────────────────── */}
       <div className="h-10 px-4 flex items-center justify-between text-white bg-black/50 backdrop-blur-sm shrink-0 z-30">
-        <div className="flex items-center gap-2.5">
-          <span className="text-[15px] font-bold text-[#0b6bde]">zoom</span>
-          <span className="text-[13px] text-[#666]">Workplace</span>
+        <div className="flex items-center gap-2 bg-black/60 px-3 py-1 rounded-lg max-w-[260px]">
+          <Info size={13} className="text-white/70 shrink-0" />
+          <span className="text-[12px] font-semibold text-white truncate">
+            {meeting?.title ?? "Zoom Meeting"}
+          </span>
         </div>
 
         <div className="flex items-center gap-4 relative">
@@ -453,29 +478,34 @@ export default function MeetingRoomPage() {
             <Maximize2 size={14} />
           </button>
 
-          {/* Info panel overlay */}
+          {/* Encryption panel (Zoom: shield → "Enhanced encryption is on") */}
           {showInfoPanel && (
-            <div className="absolute top-10 right-0 bg-[#1e1e1e] border border-white/10 rounded-xl shadow-2xl z-50 w-80 p-5" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-[15px] font-bold text-white mb-4">{meeting?.title ?? `${HOST_NAME}'s Zoom Meeting`}</h3>
-              <div className="space-y-3">
+            <div className="absolute top-10 right-0 bg-[#1e1e1e] border border-white/10 rounded-xl shadow-2xl z-50 w-[340px] p-5" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-[14px] font-bold text-white mb-1.5">Enhanced encryption is on</h3>
+              <p className="text-[12px] text-[#aaa] leading-relaxed mb-4">
+                You are connected to the Zoom Global Network via a data center in India.
+              </p>
+              <div className="space-y-2.5">
                 {[
                   { label: "Meeting ID", value: formatMeetingId(meetingId), mono: true },
                   { label: "Host", value: meeting?.hostName ?? `${HOST_NAME} (You)`, mono: false },
                   ...(meeting?.passcode
                     ? [{ label: "Passcode", value: meeting.passcode, mono: true as const }]
                     : []),
-                  { label: "Status", value: meeting?.status ?? "active", mono: false, green: true },
-                  { label: "Encryption", value: "Enabled", mono: false, green: true },
-                ].map(({ label, value, mono, green }) => (
+                ].map(({ label, value, mono }) => (
                   <div key={label} className="flex gap-4">
-                    <span className="text-[12px] text-[#888] w-36 shrink-0">{label}</span>
-                    <span className={`text-[12px] ${mono ? "font-mono" : ""} ${green ? "text-[#23d85d]" : "text-white"}`}>{value}</span>
+                    <span className="text-[12px] text-[#888] w-24 shrink-0">{label}</span>
+                    <span className={`text-[12px] text-white ${mono ? "font-mono" : ""}`}>{value}</span>
                   </div>
                 ))}
+                <div className="flex gap-4">
+                  <span className="text-[12px] text-[#888] w-24 shrink-0">Encryption</span>
+                  <span className="text-[12px] text-white">Enabled</span>
+                </div>
                 <div className="flex gap-4 items-start">
-                  <span className="text-[12px] text-[#888] w-36 shrink-0">Invite Link</span>
+                  <span className="text-[12px] text-[#888] w-24 shrink-0">Invite Link</span>
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[11px] text-[#5b9eff] truncate max-w-[140px]">
+                    <span className="text-[11px] text-[#5b9eff] truncate max-w-[150px]">
                       {meeting?.inviteLink ?? `…/join/${meetingId}`}
                     </span>
                     <button onClick={copyInviteLink} className="shrink-0 text-[#5b9eff] hover:text-white transition-colors">
@@ -484,9 +514,14 @@ export default function MeetingRoomPage() {
                   </div>
                 </div>
               </div>
-              <p className="text-[11px] text-[#555] mt-4 leading-relaxed">
-                You are connected to the Zoom Global Network via a data center in India.
-              </p>
+              <div className="border-t border-white/10 mt-4 pt-3 space-y-2.5">
+                <button className="block text-[13px] font-medium text-[#e03e3e] hover:text-[#ff6b60] transition-colors">
+                  Report
+                </button>
+                <button className="block text-[13px] font-medium text-white hover:text-[#aaa] transition-colors">
+                  Security settings
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -518,20 +553,25 @@ export default function MeetingRoomPage() {
           </div>
         </div>
 
-        {/* ── Side panel ─────────────────────────────────────────────────── */}
-        {panel !== "none" && (
+        {/* ── Side panel (participants / chat) ───────────────────────────── */}
+        {(panel === "participants" || panel === "chat") && (
           <div className="w-72 bg-[#1e1e1e] border-l border-white/10 flex flex-col shrink-0">
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-              <span className="text-[14px] font-semibold text-white capitalize">
+              <span className="text-[14px] font-semibold text-white">
                 {panel === "participants"
                   ? `Participants (${waitingParticipants.length})`
-                  : panel === "chat"
-                  ? "In-Meeting Chat"
-                  : "Host Tools"}
+                  : "Meeting Chat"}
               </span>
-              <button onClick={() => setPanel("none")} className="text-[#777] hover:text-white transition-colors">
-                <X size={16} />
-              </button>
+              <div className="flex items-center gap-2">
+                {panel === "chat" && (
+                  <button title="Pop out chat" className="text-[#777] hover:text-white transition-colors">
+                    <Maximize2 size={14} />
+                  </button>
+                )}
+                <button onClick={() => setPanel("none")} className="text-[#777] hover:text-white transition-colors">
+                  <X size={16} />
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto">
@@ -636,65 +676,39 @@ export default function MeetingRoomPage() {
                   </div>
                 </div>
               )}
-
-              {/* Host Tools (was Security) */}
-              {panel === "security" && (
-                <div className="p-4 space-y-1">
-                  {/* Lock + waiting room + hide pics */}
-                  {[
-                    { label: "Lock Meeting", value: lockMeeting, setter: setLockMeeting },
-                    { label: "Enable waiting room", value: waitingRoomOn, setter: setWaitingRoomOn },
-                    { label: "Hide profile pictures", value: hideProfilePics, setter: setHideProfilePics },
-                  ].map(({ label, value, setter }) => (
-                    <div key={label} className="flex items-center justify-between py-2.5 border-b border-white/5">
-                      <span className="text-[13px] text-[#ccc]">{label}</span>
-                      <MiniToggle value={value} onChange={setter} />
-                    </div>
-                  ))}
-
-                  {/* Allow participants to */}
-                  <div className="pt-3">
-                    <p className="text-[12px] font-semibold text-white mb-2">Allow participants to:</p>
-                    {[
-                      { label: "Share Screen", value: allowScreenShare, setter: setAllowScreenShare },
-                      { label: "Chat", value: allowChatPerm, setter: setAllowChatPerm },
-                      { label: "Rename Themselves", value: allowRename, setter: setAllowRename },
-                      { label: "Unmute Themselves", value: allowUnmuteSelf, setter: setAllowUnmuteSelf },
-                      { label: "Start Video", value: allowStartVideo, setter: setAllowStartVideo },
-                      { label: "Share Whiteboards", value: allowWhiteboards, setter: setAllowWhiteboards },
-                    ].map(({ label, value, setter }) => (
-                      <button key={label} onClick={() => setter(!value)}
-                        className="w-full flex items-center gap-3 py-1.5 hover:bg-white/5 rounded-lg px-1 transition-colors">
-                        <div className={`w-4 h-4 rounded-sm border flex items-center justify-center shrink-0 transition-colors ${value ? "bg-[#0b6bde] border-[#0b6bde]" : "border-[#555]"}`}>
-                          {value && <Check size={10} className="text-white" />}
-                        </div>
-                        <span className="text-[13px] text-[#ccc]">{label}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  <button className="w-full mt-3 py-2 text-[13px] text-[#e03e3e] font-medium hover:bg-[#e03e3e]/10 rounded-lg transition-colors border border-[#e03e3e]/30">
-                    Suspend Participant Activities
-                  </button>
-                </div>
-              )}
             </div>
 
-            {/* Chat input */}
+            {/* Chat composer (Zoom: Everyone pill + formatting row) */}
             {panel === "chat" && (
               <div className="p-3 border-t border-white/10">
+                <p className="text-[11px] text-[#777] mb-1.5">Who can see your messages?</p>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="text-[11px] text-[#888]">to:</span>
+                  <span className="text-[11px] font-semibold text-white bg-[#0B5CFF] px-2.5 py-0.5 rounded-full">
+                    Everyone
+                  </span>
+                </div>
                 <div className="flex items-center gap-2 bg-white/10 rounded-xl px-3 py-2">
                   <input
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && sendChat()}
-                    placeholder="Type a message…"
+                    placeholder="Type message here ..."
                     className="flex-1 bg-transparent text-[13px] text-white outline-none placeholder-[#555]"
                   />
                   <button onClick={sendChat} className="text-[#0b6bde] hover:text-[#5b9eff] transition-colors">
                     <Send size={15} />
                   </button>
+                </div>
+                <div className="flex items-center gap-4 mt-2 px-1">
+                  <button title="Attach a file" className="text-[#666] hover:text-white transition-colors">
+                    <Paperclip size={14} />
+                  </button>
+                  <button onClick={() => fireReaction("❤️")} title="Send a reaction" className="text-[#666] hover:text-white transition-colors text-[14px] leading-none">
+                    ♥
+                  </button>
+                  <span className="text-[11px] text-[#555]">···</span>
                 </div>
               </div>
             )}
@@ -751,8 +765,48 @@ export default function MeetingRoomPage() {
         </div>
       )}
 
-      {/* ── Bottom control bar ──────────────────────────────────────────────── */}
-      <div className="min-h-[72px] bg-black text-white flex items-center justify-between gap-2 px-3 sm:px-6 py-2 border-t border-white/10 shrink-0 z-30 relative">
+      {/* ── Host Tools popup (Zoom: anchored panel above the toolbar) ─────── */}
+      {panel === "security" && (
+        <div className="fixed bottom-[88px] left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:right-[380px] bg-[#1e1e1e] border border-white/10 rounded-xl shadow-2xl z-50 w-[320px] p-4 max-h-[60vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          {[
+            { label: "Lock Meeting", value: lockMeeting, setter: setLockMeeting },
+            { label: "Enable waiting room", value: waitingRoomOn, setter: setWaitingRoomOn },
+            { label: "Hide profile pictures", value: hideProfilePics, setter: setHideProfilePics },
+          ].map(({ label, value, setter }) => (
+            <div key={label} className="flex items-center justify-between py-2 border-b border-white/5">
+              <span className="text-[13px] text-[#ccc]">{label}</span>
+              <MiniToggle value={value} onChange={setter} />
+            </div>
+          ))}
+          <div className="pt-3">
+            <p className="text-[12px] font-semibold text-white mb-2">Allow participants to:</p>
+            {[
+              { label: "Share Screen", value: allowScreenShare, setter: setAllowScreenShare },
+              { label: "Chat", value: allowChatPerm, setter: setAllowChatPerm },
+              { label: "Rename Themselves", value: allowRename, setter: setAllowRename },
+              { label: "Unmute Themselves", value: allowUnmuteSelf, setter: setAllowUnmuteSelf },
+              { label: "Start Video", value: allowStartVideo, setter: setAllowStartVideo },
+              { label: "Share Whiteboards", value: allowWhiteboards, setter: setAllowWhiteboards },
+              { label: "Transcribe in My Notes", value: true, setter: (_: boolean) => {} },
+            ].map(({ label, value, setter }) => (
+              <div key={label} className="flex items-center gap-2.5 py-1 text-[13px] text-[#ccc]">
+                <Check size={13} className={value ? "text-white shrink-0" : "text-transparent shrink-0"} />
+                <button onClick={() => setter(!value)} className="hover:text-white transition-colors text-left">
+                  {label}
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="border-t border-white/10 mt-3 pt-3">
+            <button className="w-full text-center text-[13px] text-[#e03e3e] font-medium hover:text-[#ff6b60] transition-colors">
+              Suspend Participant Activities
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Bottom control bar (Zoom: translucent dark) ─────────────────────── */}
+      <div className="min-h-[72px] bg-black/80 backdrop-blur-md text-white flex items-center justify-between gap-2 px-3 sm:px-6 py-2 border-t border-white/10 shrink-0 z-30 relative">
         {/* Left */}
         <div className="flex items-center gap-1 shrink-0">
           <ControlBtn icon={micOn ? <Mic size={20} /> : <MicOff size={20} className="text-[#ff3b30]" />} label={micOn ? "Mute" : "Unmute"} onClick={toggleMic} />
@@ -761,13 +815,13 @@ export default function MeetingRoomPage() {
 
         {/* Center — horizontally scrollable on small screens */}
         <div className="flex items-center gap-1 overflow-x-auto flex-1 sm:flex-none justify-start sm:justify-center sm:absolute sm:left-1/2 sm:-translate-x-1/2 py-1">
-          <ControlBtn icon={<Shield size={20} />} label="Host Tools" onClick={() => setPanel(panel === "security" ? "none" : "security")} active={panel === "security"} />
-          <ControlBtn icon={<Users size={20} />} label="Participants" onClick={() => setPanel(panel === "participants" ? "none" : "participants")} active={panel === "participants"} />
+          <ControlBtn icon={<Shield size={20} />} label="Host Tools" onClick={() => { setPanel(panel === "security" ? "none" : "security"); setShowMoreMenu(false); setShowReactionPicker(false); }} active={panel === "security"} />
+          <ControlBtn badge={waitingParticipants.length} icon={<Users size={20} />} label="Participants" onClick={() => setPanel(panel === "participants" ? "none" : "participants")} active={panel === "participants"} />
           <ControlBtn icon={<MessageCircle size={20} />} label="Chat" onClick={() => setPanel(panel === "chat" ? "none" : "chat")} active={panel === "chat"} />
-          <ControlBtn icon={<Smile size={20} />} label="Reactions" onClick={(e?: React.MouseEvent) => { e?.stopPropagation(); setShowReactionPicker((v) => !v); setShowMoreMenu(false); }} active={showReactionPicker} />
-          <ControlBtn icon={<Monitor size={20} className={screenSharing ? "text-[#23d85d]" : ""} />} label={screenSharing ? "Stop Share" : "Share Screen"} onClick={toggleScreen} active={screenSharing} />
+          <ControlBtn caret icon={<Heart size={20} />} label="React" onClick={(e?: React.MouseEvent) => { e?.stopPropagation(); setShowReactionPicker((v) => !v); setShowMoreMenu(false); }} active={showReactionPicker} />
+          <ControlBtn caret icon={<Monitor size={20} className="text-[#23d85d]" />} label={screenSharing ? "Stop Share" : "Share"} onClick={toggleScreen} active={screenSharing} />
           <ControlBtn icon={<Hand size={20} className={handRaised ? "text-[#fe7521]" : ""} />} label={handRaised ? "Lower Hand" : "Raise Hand"} onClick={() => setHandRaised((v) => !v)} active={handRaised} />
-          <ControlBtn icon={<MoreHorizontal size={20} />} label="More" onClick={(e?: React.MouseEvent) => { e?.stopPropagation(); setShowMoreMenu((v) => !v); setShowViewMenu(false); setShowInfoPanel(false); setShowReactionPicker(false); }} active={showMoreMenu} />
+          <ControlBtn caret icon={<MoreHorizontal size={20} />} label="More" onClick={(e?: React.MouseEvent) => { e?.stopPropagation(); setShowMoreMenu((v) => !v); setShowViewMenu(false); setShowInfoPanel(false); setShowReactionPicker(false); }} active={showMoreMenu} />
         </div>
 
         {/* Right */}
@@ -777,23 +831,29 @@ export default function MeetingRoomPage() {
         </button>
       </div>
 
-      {/* End meeting dialog */}
+      {/* End meeting dialog (Zoom: centered) */}
       {showEndDialog && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end justify-end p-8">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-8">
           <div className="bg-[#2d2d2d] rounded-2xl border border-white/10 shadow-2xl p-6 w-80">
-            <h3 className="text-[16px] font-bold text-white mb-1">End Meeting?</h3>
-            <p className="text-[13px] text-[#888] mb-5">You can leave the meeting or end it for everyone.</p>
             <div className="space-y-2">
               <button onClick={handleEnd} className="w-full py-3 bg-[#e03e3e] hover:bg-[#c0392b] text-white font-semibold rounded-xl transition-colors text-[14px]">
                 End Meeting for All
               </button>
               <button onClick={handleLeave}
-                className="w-full py-3 border border-white/20 text-white font-medium rounded-xl hover:bg-white/10 transition-colors text-[14px]">
+                className="w-full py-3 bg-white/10 text-white font-medium rounded-xl hover:bg-white/15 transition-colors text-[14px]">
                 Leave Meeting
               </button>
-              <button onClick={() => setShowEndDialog(false)} className="w-full py-2 text-[#888] hover:text-white transition-colors text-[13px]">
-                Cancel
-              </button>
+              <div className="flex items-center justify-between pt-3">
+                <button onClick={() => setGiveFeedbackOpt((v) => !v)} className="flex items-center gap-2 text-[13px] text-[#ccc] hover:text-white transition-colors">
+                  <div className={`w-4 h-4 rounded-sm border flex items-center justify-center transition-colors ${giveFeedbackOpt ? "bg-[#0B5CFF] border-[#0B5CFF]" : "border-[#666]"}`}>
+                    {giveFeedbackOpt && <Check size={10} className="text-white" />}
+                  </div>
+                  Give feedback
+                </button>
+                <button onClick={() => setShowEndDialog(false)} className="text-[#888] hover:text-white transition-colors text-[13px]">
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -803,20 +863,28 @@ export default function MeetingRoomPage() {
 }
 
 function ControlBtn({
-  icon, label, onClick, active = false, caret = false,
+  icon, label, onClick, active = false, caret = false, badge,
 }: {
   icon: React.ReactNode;
   label: string;
   onClick: (e?: React.MouseEvent) => void;
   active?: boolean;
-  /** Legacy flag for caret — safely ignored to keep DOM clean */
+  /** Show the small submenu caret next to the icon (only where a popup exists). */
   caret?: boolean;
+  /** Count pill (e.g. participants) shown above the icon, like Zoom. */
+  badge?: number;
 }) {
   return (
     <button onClick={onClick}
       className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group shrink-0 ${active ? "bg-white/15" : "hover:bg-white/10"}`}>
-      <span className="flex items-center justify-center h-5 w-full">
+      <span className="relative flex items-center gap-1 h-5">
         {icon}
+        {caret && <ChevronUp size={11} className="text-white/40 group-hover:text-white/70 shrink-0" />}
+        {typeof badge === "number" && badge > 0 && (
+          <span className="absolute -top-1.5 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-white/25 text-white text-[9px] font-bold flex items-center justify-center">
+            {badge}
+          </span>
+        )}
       </span>
       <span className="text-[10px] font-medium text-white/70 group-hover:text-white whitespace-nowrap">{label}</span>
     </button>

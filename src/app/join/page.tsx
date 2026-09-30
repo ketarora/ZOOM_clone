@@ -81,6 +81,17 @@ export default function JoinPage() {
     setPhase("preview");
   };
 
+  // Zoom-style permission choice: join with media on, or camera+mic off.
+  const joinWithMedia = async (withMedia: boolean) => {
+    if (stream) {
+      stream.getVideoTracks().forEach((t) => (t.enabled = withMedia));
+      stream.getAudioTracks().forEach((t) => (t.enabled = withMedia));
+    }
+    setCameraOn(withMedia);
+    setMicOn(withMedia);
+    await handleJoin();
+  };
+
   const handleJoin = async () => {
     if (!isValidDisplayName(displayName)) {
       setError("Please enter your display name.");
@@ -229,21 +240,26 @@ export default function JoinPage() {
                 </div>
               </div>
 
-              {/* Right panel */}
-              <div className="w-full md:w-64 flex flex-col justify-center">
-                <div className="bg-white rounded-2xl border border-[#ebebeb] p-5 shadow-sm">
+              {/* Right panel — Zoom permission-card style */}
+              <div className="w-full md:w-72 flex flex-col justify-center">
+                <div className="bg-white rounded-2xl border border-[#ebebeb] p-6 shadow-sm text-center">
+                  <div className="w-14 h-14 bg-[#eef5ff] rounded-full flex items-center justify-center mx-auto mb-3">
+                    <Video size={26} className="text-[#0B5CFF]" />
+                  </div>
                   <h2 className="text-[16px] font-bold text-[#1a1a1a] mb-1">
-                    Ready to join?
+                    Do you want people to see you in the meeting?
                   </h2>
-                  <p className="text-[13px] text-[#888] mb-4">
+                  <p className="text-[12px] text-[#888] mb-1">
+                    You can still turn off your microphone and camera anytime in the meeting.
+                  </p>
+                  <p className="text-[12px] text-[#888] mb-1">
                     Meeting ID:{" "}
                     <span className="font-mono text-[#444]">
                       {formatMeetingId(resolvedId)}
                     </span>
                   </p>
-                  <p className="text-[12px] text-[#888] mb-1">Joining as</p>
-                  <p className="text-[14px] font-semibold text-[#1a1a1a] mb-5">
-                    {displayName}
+                  <p className="text-[12px] text-[#888] mb-4">
+                    Joining as <span className="font-semibold text-[#1a1a1a]">{displayName}</span>
                   </p>
 
                   {error && (
@@ -251,18 +267,27 @@ export default function JoinPage() {
                   )}
 
                   <button
-                    onClick={handleJoin}
+                    onClick={() => joinWithMedia(true)}
                     disabled={joinMeeting.isPending || !isValidDisplayName(displayName)}
                     className="w-full py-2.5 bg-[#0B5CFF] text-white text-[14px] font-semibold rounded-xl hover:bg-[#0047cc] transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
                   >
                     {joinMeeting.isPending ? (
                       <Loader2 size={16} className="animate-spin" />
-                    ) : null}
-                    Join Meeting
+                    ) : (
+                      <Video size={15} />
+                    )}
+                    Use microphone and camera
+                  </button>
+                  <button
+                    onClick={() => joinWithMedia(false)}
+                    disabled={joinMeeting.isPending || !isValidDisplayName(displayName)}
+                    className="w-full mt-2 py-1.5 text-[13px] text-[#0B5CFF] hover:underline transition-colors disabled:opacity-60"
+                  >
+                    Continue without microphone and camera
                   </button>
                   <button
                     onClick={() => setPhase("form")}
-                    className="w-full mt-2 py-2 text-[13px] text-[#666] hover:text-[#333] transition-colors"
+                    className="w-full mt-1 py-2 text-[13px] text-[#666] hover:text-[#333] transition-colors"
                   >
                     Cancel
                   </button>

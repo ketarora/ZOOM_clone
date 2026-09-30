@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useMeeting, useEndMeeting, useMeetingParticipants } from "@/lib/hooks";
 import { formatMeetingId, urlMeetingId } from "@/lib/utils";
+import CopyInviteModal from "@/components/meeting/CopyInviteModal";
 import { format } from "date-fns";
 import {
   Copy,
@@ -24,6 +25,7 @@ export default function LaunchPage() {
   // always talk to the API with compact digits.
   const apiId = urlMeetingId(meetingId ?? "");
   const [copied, setCopied] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const { data: meeting, isLoading } = useMeeting(apiId);
   const { data: participants = [] } = useMeetingParticipants(apiId, !!meeting);
   const endMeeting = useEndMeeting();
@@ -274,7 +276,7 @@ export default function LaunchPage() {
               {meeting.inviteLink}
             </p>
             <button
-              onClick={copyInvite}
+              onClick={() => setShowInviteModal(true)}
               className="w-full py-2 border border-[#ddd] rounded-lg text-[13px] text-[#444] hover:bg-[#f5f5f5] transition-colors flex items-center justify-center gap-1.5"
             >
               <ExternalLink size={13} />
@@ -283,6 +285,9 @@ export default function LaunchPage() {
           </div>
         </div>
       </div>
+      {showInviteModal && meeting && (
+        <CopyInviteModal meeting={meeting} onClose={() => setShowInviteModal(false)} />
+      )}
     </div>
   );
 }

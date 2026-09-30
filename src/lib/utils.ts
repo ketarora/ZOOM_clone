@@ -29,6 +29,15 @@ export function compactMeetingId(id: string): string {
 }
 
 /**
+ * Personal Meeting ID derived deterministically from the backend user id —
+ * stable per account without hardcoding a magic number. Display grouped
+ * with formatMeetingId(), route with compactMeetingId().
+ */
+export function personalMeetingId(userId: number): string {
+  return String(1000000000 + userId * 7919).slice(0, 10);
+}
+
+/**
  * Accept a raw Meeting ID *or* a full invite link and return compact digits.
  * Handles: "312 748 5920", "3127485920", "312-748-5920",
  * "http://host/join/3127485920", "...?meetingId=3127485920".
