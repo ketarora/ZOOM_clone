@@ -702,6 +702,55 @@ export default function MeetingRoomPage() {
         )}
       </div>
 
+      {/* ── Floating popups (fixed: escape the scrollable toolbar so they never clip) ── */}
+      {showReactionPicker && (
+        <div className="fixed bottom-[88px] left-1/2 -translate-x-1/2 bg-[#2d2d2d] border border-white/10 rounded-2xl px-4 py-3 flex gap-2.5 shadow-2xl z-[60]" onClick={(e) => e.stopPropagation()}>
+          {REACTIONS.map((emoji) => (
+            <button key={emoji} onClick={() => fireReaction(emoji)} className="text-2xl hover:scale-125 transition-transform leading-none">{emoji}</button>
+          ))}
+        </div>
+      )}
+      {showMoreMenu && (
+        <div className="fixed bottom-[88px] right-3 sm:right-6 bg-[#2d2d2d] border border-white/10 rounded-xl shadow-2xl z-[60] w-56 py-2" onClick={(e) => e.stopPropagation()}>
+          <button onClick={() => { setCaptionsOn((v) => !v); setShowMoreMenu(false); }}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#ccc] hover:bg-white/10 transition-colors">
+            <span className="w-7 h-5 border border-[#666] rounded text-[9px] flex items-center justify-center text-[#aaa] shrink-0 font-bold">CC</span>
+            <span>{captionsOn ? "Hide Captions" : "Captions"}</span>
+          </button>
+          <button onClick={() => setShowMoreMenu(false)}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#ccc] hover:bg-white/10 transition-colors">
+            <LayoutGrid size={16} className="text-[#aaa] shrink-0" />
+            <span>Breakout Rooms</span>
+          </button>
+          <div className="border-t border-white/10 my-1" />
+          <button onClick={() => setShowMoreMenu(false)}
+            className="w-full flex items-center justify-between px-4 py-2.5 text-[13px] text-[#ccc] hover:bg-white/10 transition-colors">
+            <div className="flex items-center gap-3">
+              <Monitor size={16} className="text-[#aaa] shrink-0" />
+              <span>Whiteboards</span>
+            </div>
+            <ChevronUp size={11} className="rotate-90 text-[#666]" />
+          </button>
+          <div className="border-t border-white/10 my-1" />
+          <button onClick={() => { toggleFullscreen(); setShowMoreMenu(false); }}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#ccc] hover:bg-white/10 transition-colors">
+            <Settings size={16} className="text-[#aaa] shrink-0" />
+            <span>Settings</span>
+          </button>
+          <button onClick={() => { setIncomingVideoOff((v) => !v); setShowMoreMenu(false); }}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#ccc] hover:bg-white/10 transition-colors">
+            <VideoOff size={16} className="text-[#aaa] shrink-0" />
+            <span>{incomingVideoOff ? "Start Incoming Video" : "Stop Incoming Video"}</span>
+          </button>
+          <div className="border-t border-white/10 my-1" />
+          <button onClick={() => setShowMoreMenu(false)}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#ccc] hover:bg-white/10 transition-colors">
+            <RotateCcw size={16} className="text-[#aaa] shrink-0" />
+            <span>Reset to default</span>
+          </button>
+        </div>
+      )}
+
       {/* ── Bottom control bar ──────────────────────────────────────────────── */}
       <div className="min-h-[72px] bg-black text-white flex items-center justify-between gap-2 px-3 sm:px-6 py-2 border-t border-white/10 shrink-0 z-30 relative">
         {/* Left */}
@@ -715,60 +764,10 @@ export default function MeetingRoomPage() {
           <ControlBtn icon={<Shield size={20} />} label="Host Tools" onClick={() => setPanel(panel === "security" ? "none" : "security")} active={panel === "security"} />
           <ControlBtn icon={<Users size={20} />} label="Participants" onClick={() => setPanel(panel === "participants" ? "none" : "participants")} active={panel === "participants"} />
           <ControlBtn icon={<MessageCircle size={20} />} label="Chat" onClick={() => setPanel(panel === "chat" ? "none" : "chat")} active={panel === "chat"} />
-          <div className="relative">
-            <ControlBtn icon={<Smile size={20} />} label="Reactions" onClick={(e?: React.MouseEvent) => { e?.stopPropagation(); setShowReactionPicker((v) => !v); }} active={showReactionPicker} />
-            {showReactionPicker && (
-              <div className="absolute bottom-16 left-1/2 -translate-x-1/2 bg-[#2d2d2d] border border-white/10 rounded-2xl p-3 flex gap-2 shadow-2xl z-50" onClick={(e) => e.stopPropagation()}>
-                {REACTIONS.map((emoji) => (
-                  <button key={emoji} onClick={() => fireReaction(emoji)} className="text-2xl hover:scale-125 transition-transform">{emoji}</button>
-                ))}
-              </div>
-            )}
-          </div>
+          <ControlBtn icon={<Smile size={20} />} label="Reactions" onClick={(e?: React.MouseEvent) => { e?.stopPropagation(); setShowReactionPicker((v) => !v); setShowMoreMenu(false); }} active={showReactionPicker} />
           <ControlBtn icon={<Monitor size={20} className={screenSharing ? "text-[#23d85d]" : ""} />} label={screenSharing ? "Stop Share" : "Share Screen"} onClick={toggleScreen} active={screenSharing} />
           <ControlBtn icon={<Hand size={20} className={handRaised ? "text-[#fe7521]" : ""} />} label={handRaised ? "Lower Hand" : "Raise Hand"} onClick={() => setHandRaised((v) => !v)} active={handRaised} />
-
-          {/* More — with real dropdown */}
-          <div className="relative">
-            <ControlBtn icon={<MoreHorizontal size={20} />} label="More" onClick={(e?: React.MouseEvent) => { e?.stopPropagation(); setShowMoreMenu((v) => !v); setShowViewMenu(false); setShowInfoPanel(false); }} active={showMoreMenu} />
-            {showMoreMenu && (
-              <div className="absolute bottom-16 right-0 bg-[#2d2d2d] border border-white/10 rounded-xl shadow-2xl z-50 w-52 py-2" onClick={(e) => e.stopPropagation()}>
-                <button onClick={() => { setCaptionsOn((v) => !v); setShowMoreMenu(false); }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#ccc] hover:bg-white/10 transition-colors">
-                  <span className="w-7 h-5 border border-[#666] rounded text-[9px] flex items-center justify-center text-[#aaa] shrink-0 font-bold">CC</span>
-                  <span>{captionsOn ? "Hide Captions" : "Captions"}</span>
-                </button>
-                <button className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#ccc] hover:bg-white/10 transition-colors">
-                  <LayoutGrid size={16} className="text-[#aaa] shrink-0" />
-                  <span>Breakout Rooms</span>
-                </button>
-                <div className="border-t border-white/10 my-1" />
-                <button className="w-full flex items-center justify-between px-4 py-2.5 text-[13px] text-[#ccc] hover:bg-white/10 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <Monitor size={16} className="text-[#aaa] shrink-0" />
-                    <span>Whiteboards</span>
-                  </div>
-                  <ChevronUp size={11} className="rotate-90 text-[#666]" />
-                </button>
-                <div className="border-t border-white/10 my-1" />
-                <button className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#ccc] hover:bg-white/10 transition-colors">
-                  <Settings size={16} className="text-[#aaa] shrink-0" />
-                  <span>Settings</span>
-                </button>
-                <button onClick={() => { setIncomingVideoOff((v) => !v); setShowMoreMenu(false); }}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#ccc] hover:bg-white/10 transition-colors">
-                  <VideoOff size={16} className="text-[#aaa] shrink-0" />
-                  <span>{incomingVideoOff ? "Start Incoming Video" : "Stop Incoming Video"}</span>
-                </button>
-                <div className="border-t border-white/10 my-1" />
-                <button onClick={() => setShowMoreMenu(false)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#ccc] hover:bg-white/10 transition-colors">
-                  <RotateCcw size={16} className="text-[#aaa] shrink-0" />
-                  <span>Reset to default</span>
-                </button>
-              </div>
-            )}
-          </div>
+          <ControlBtn icon={<MoreHorizontal size={20} />} label="More" onClick={(e?: React.MouseEvent) => { e?.stopPropagation(); setShowMoreMenu((v) => !v); setShowViewMenu(false); setShowInfoPanel(false); setShowReactionPicker(false); }} active={showMoreMenu} />
         </div>
 
         {/* Right */}
@@ -804,19 +803,20 @@ export default function MeetingRoomPage() {
 }
 
 function ControlBtn({
-  icon, label, onClick, active = false,
+  icon, label, onClick, active = false, caret = false,
 }: {
   icon: React.ReactNode;
   label: string;
   onClick: (e?: React.MouseEvent) => void;
   active?: boolean;
+  /** Legacy flag for caret — safely ignored to keep DOM clean */
+  caret?: boolean;
 }) {
   return (
     <button onClick={onClick}
-      className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group ${active ? "bg-white/15" : "hover:bg-white/10"}`}>
-      <span className="relative">
+      className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group shrink-0 ${active ? "bg-white/15" : "hover:bg-white/10"}`}>
+      <span className="flex items-center justify-center h-5 w-full">
         {icon}
-        <ChevronUp size={9} className="absolute -right-2 top-1 text-white/40 group-hover:text-white/70" />
       </span>
       <span className="text-[10px] font-medium text-white/70 group-hover:text-white whitespace-nowrap">{label}</span>
     </button>

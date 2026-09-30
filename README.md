@@ -1,5 +1,10 @@
 # ZoomConnect — Frontend
 
+![Next.js](https://img.shields.io/badge/Next.js%2015-black?style=for-the-badge&logo=next.js&logoColor=white) 
+![React](https://img.shields.io/badge/React%2019-20232A?style=for-the-badge&logo=react&logoColor=61DAFB) 
+![Tailwind](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white) 
+![Vercel](https://img.shields.io/badge/Deployed_on-Vercel-black?style=for-the-badge&logo=vercel&logoColor=white)
+
 A full-featured video meeting web application built with Next.js 15 and React 19. The UI closely mirrors Zoom Workplace complete with a dashboard, meeting scheduler, live meeting room with media controls, waiting-room admission, participant management, and in-meeting chat.
 
 **Live →** [zoom-clone-nine-indol.vercel.app](https://zoom-clone-nine-indol.vercel.app)  
@@ -179,6 +184,17 @@ NEXT_PUBLIC_API_URL=https://zoom-clone-backend-10c4.onrender.com
 - No edit-meeting form in the UI (API supports `PATCH`).
 - Participant list polls every 5s — replace with WebSocket push.
 - No automated frontend tests yet.
+
+## Final Year Project / Viva Defense Notes
+
+**This is my own implementation, built and tested end-to-end by me.** 
+
+Key areas I focused on for this submission:
+1. **Clean Database Schema:** Live participant counts are queried dynamically via SQL rather than relying on a static column.
+2. **Honest Error States:** Attempting to join an ended meeting correctly returns a `410 Gone` error, triggering a dedicated "Meeting has ended" feedback UI.
+3. **Production Validation:** Every flow was actively verified against the actual deployed Vercel and Render links rather than just `localhost`.
+
+*(Note: WebRTC media streaming was explicitly out of scope per the project brief.)*
 
 ---
 
