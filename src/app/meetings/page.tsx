@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
 import { useMeetings, useDeleteMeeting, useCreateMeeting } from "@/lib/hooks";
-import { formatMeetingId } from "@/lib/utils";
+import { formatMeetingId, urlMeetingId } from "@/lib/utils";
 import { format } from "date-fns";
 import {
   Video,
@@ -50,7 +50,7 @@ export default function MeetingsPage() {
         type: "instant",
         durationMinutes: 60,
       });
-      router.push(`/room/${m.meetingId}`);
+      router.push(`/room/${urlMeetingId(m.meetingId)}`);
     } catch (e) {
       console.error("Failed to create meeting", e);
     }
@@ -197,8 +197,8 @@ export default function MeetingsPage() {
                       <button
                         onClick={() =>
                           m.status === "active"
-                            ? router.push(`/room/${m.meetingId}`)
-                            : router.push(`/launch/${m.meetingId}`)
+                            ? router.push(`/room/${urlMeetingId(m.meetingId)}`)
+                            : router.push(`/launch/${urlMeetingId(m.meetingId)}`)
                         }
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0b6bde] text-white text-[12px] font-medium rounded-lg hover:bg-[#0047cc] transition-colors"
                       >

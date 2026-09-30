@@ -17,7 +17,7 @@ import {
   useMuteAll,
   useRemoveParticipant,
 } from "@/lib/hooks";
-import { formatMeetingId, formatElapsed } from "@/lib/utils";
+import { formatMeetingId, formatElapsed, urlMeetingId } from "@/lib/utils";
 import {
   Mic, MicOff, Video, VideoOff, PhoneOff, Users, MessageCircle, Smile,
   Monitor, MoreHorizontal, ShieldCheck, ChevronUp, X, Send, Maximize2,
@@ -103,11 +103,13 @@ export default function MeetingRoomPage() {
   const [allowStartVideo, setAllowStartVideo] = useState(true);
   const [allowWhiteboards, setAllowWhiteboards] = useState(true);
 
+  // Route param may carry grouped digits from old links — API calls use compact.
+  const apiId = urlMeetingId(meetingId ?? "");
   const { data: meeting, isLoading: meetingLoading, error: meetingError } =
-    useMeeting(meetingId);
+    useMeeting(apiId);
   const { data: me } = useMe();
   const HOST_NAME = meeting?.hostName ?? me?.displayName ?? "You";
-  const { data: waitingParticipants = [] } = useMeetingParticipants(meetingId, phase === "active");
+  const { data: waitingParticipants = [] } = useMeetingParticipants(apiId, phase === "active");
   const endMeeting = useEndMeeting();
   const leaveMeeting = useLeaveMeeting();
   const muteAll = useMuteAll();
@@ -185,7 +187,7 @@ export default function MeetingRoomPage() {
   };
 
   const copyInviteLink = () => {
-    const text = meeting?.inviteLink ?? `${window.location.origin}/join?meetingId=${meetingId}`;
+    const text = meeting?.inviteLink ?? `${window.location.origin}/join?meetingId=${apiId}`;
     navigator.clipboard.writeText(text).catch(() => {});
     setCopiedInvite(true);
     setTimeout(() => setCopiedInvite(false), 2000);
@@ -193,7 +195,7 @@ export default function MeetingRoomPage() {
 
   const handleMuteAll = async () => {
     try {
-      await muteAll.mutateAsync(meetingId);
+      await muteAll.mutateAsync(apiId);
     } catch {
       // toast-less: button shows pending state; failure is silent but safe
     }
@@ -201,7 +203,7 @@ export default function MeetingRoomPage() {
 
   const handleRemove = async (participantId: number) => {
     try {
-      await removeParticipant.mutateAsync({ id: meetingId, participantId });
+      await removeParticipant.mutateAsync({ id: apiId, participantId });
     } catch {
       // silent — list refetches every 5s anyway
     }
@@ -242,7 +244,7 @@ export default function MeetingRoomPage() {
 
   const handleEnd = async () => {
     try {
-      await endMeeting.mutateAsync(meetingId);
+      await endMeeting.mutateAsync(apiId);
     } catch {
       // already ended on the server — still exit cleanly
     }
@@ -254,7 +256,7 @@ export default function MeetingRoomPage() {
 
   const handleLeave = async () => {
     try {
-      await leaveMeeting.mutateAsync({ id: meetingId, displayName: HOST_NAME });
+      await leaveMeeting.mutateAsync({ id: apiId, displayName: HOST_NAME });
     } catch {
       // leaving a missing meeting still exits cleanly
     }
@@ -593,7 +595,7 @@ export default function MeetingRoomPage() {
                             onClick={async () => {
                               try {
                                 const { admitParticipant } = await import("@/lib/api");
-                                await admitParticipant(meetingId, p.id);
+                                await admitParticipant(apiId, p.id);
                               } catch {
                                 // list refetches every 5s; failure is non-fatal
                               }

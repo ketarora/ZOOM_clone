@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
 import { useDashboardSummary, useCreateMeeting, useMe } from "@/lib/hooks";
-import { formatMeetingId, initials, avatarColor } from "@/lib/utils";
+import { formatMeetingId, initials, avatarColor, urlMeetingId } from "@/lib/utils";
 import { format } from "date-fns";
 import {
   Copy,
@@ -48,7 +48,7 @@ export default function HomePage() {
         type: "instant",
         durationMinutes: 60,
       });
-      router.push(`/room/${m.meetingId}`);
+      router.push(`/room/${urlMeetingId(m.meetingId)}`);
     } catch (e) {
       setActionError(
         e instanceof Error ? e.message : "Could not start the meeting. Try again."
@@ -202,11 +202,11 @@ export default function HomePage() {
               </div>
               <div className="divide-y divide-[#f5f5f5]">
                 {summary!.upcomingMeetings.slice(0, 3).map((m) => (
-                  <div
-                    key={m.id}
-                    className="px-6 py-4 flex items-center justify-between hover:bg-[#fafafa] transition-colors cursor-pointer"
-                    onClick={() => router.push(`/launch/${m.meetingId}`)}
-                  >
+                    <div
+                      key={m.id}
+                      className="px-6 py-4 flex items-center justify-between hover:bg-[#fafafa] transition-colors cursor-pointer"
+                      onClick={() => router.push(`/launch/${urlMeetingId(m.meetingId)}`)}
+                    >
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-xl bg-[#fff5ee] flex items-center justify-center shrink-0">
                         <Clock size={18} className="text-[#fe7521]" />
@@ -223,7 +223,7 @@ export default function HomePage() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        router.push(`/launch/${m.meetingId}`);
+                        router.push(`/launch/${urlMeetingId(m.meetingId)}`);
                       }}
                       className="px-4 py-1.5 bg-[#0B5CFF] text-white text-[13px] font-medium rounded-lg hover:bg-[#0047cc] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B5CFF]"
                     >
@@ -332,7 +332,7 @@ export default function HomePage() {
                     <div
                       key={m.id}
                       className="p-3 bg-[#f7f9fa] rounded-xl flex items-center gap-3 cursor-pointer hover:bg-[#eef5ff] transition-colors"
-                      onClick={() => router.push(`/launch/${m.meetingId}`)}
+                      onClick={() => router.push(`/launch/${urlMeetingId(m.meetingId)}`)}
                     >
                       <Clock size={15} className="text-[#fe7521] shrink-0" />
                       <div className="min-w-0">

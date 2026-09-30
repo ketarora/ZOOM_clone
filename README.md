@@ -1,13 +1,8 @@
 # ZoomConnect — Frontend
 
-![Next.js](https://img.shields.io/badge/Next.js%2015-black?style=for-the-badge&logo=next.js&logoColor=white) 
-![React](https://img.shields.io/badge/React%2019-20232A?style=for-the-badge&logo=react&logoColor=61DAFB) 
-![Tailwind](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white) 
-![Vercel](https://img.shields.io/badge/Deployed_on-Vercel-black?style=for-the-badge&logo=vercel&logoColor=white)
+A full-featured video meeting web application built with Next.js 15 and React 19. The UI closely mirrors Zoom Workplace complete with a dashboard, meeting scheduler, live meeting room with media controls, waiting-room admission, participant management, and in-meeting chat.
 
-A full-featured video meeting web application built with Next.js 15 and React 19. The UI closely mirrors Zoom Workplace complete with a dashboard, meeting scheduler, live meeting room with media controls, waiting room flow, participant management, and real-time chat.
-
-**Live →** [zoom-clone-nine-indol.vercel.app](https://zoom-clone-nine-indol.vercel.app/)  
+**Live →** [zoom-clone-nine-indol.vercel.app](https://zoom-clone-nine-indol.vercel.app)  
 
 **Backend API →** [zoom-clone-backend-10c4.onrender.com](https://zoom-clone-backend-10c4.onrender.com)
 
@@ -57,7 +52,7 @@ A full-featured video meeting web application built with Next.js 15 and React 19
 src/
 ├── app/
 │   ├── page.tsx              # Dashboard / home
-│   ├── join/page.tsx         # Join flow (form → preview → waiting room)
+│   ├── join/page.tsx         # Join flow (form → preview → room)
 │   ├── schedule/page.tsx     # Schedule a meeting
 │   ├── meetings/page.tsx     # Meeting list with filters
 │   ├── launch/[meetingId]/   # Pre-meeting launch screen
@@ -80,13 +75,13 @@ src/
 ## Getting Started
 
 ```bash
-git clone https://github.com/ketarora/ZOOM_clone.git
-cd ZOOM_clone
+git clone https://github.com/ketarora/zoom__clone.git
+cd zoom__clone
 
 npm install
 
 # Point at the API
-cp .env.example .env.local
+cp .env.example .env.local   # Windows PowerShell: Copy-Item .env.example .env.local
 # NEXT_PUBLIC_API_URL=http://localhost:8000
 
 npm run dev
@@ -131,6 +126,7 @@ All requests go through `/api/*` (rewritten to the backend). The client in `src/
 - `GET /meetings/:id/participants` — participant list
 - `POST /meetings/:id/mute-all` — host control
 - `DELETE /meetings/:id/participants/:pid` — host control
+- `POST /meetings/:id/participants/:pid/admit` — waiting-room admission
 - `GET /dashboard/summary` — aggregated stats
 
 Response shapes match the TypeScript interfaces in `api.ts` directly — no transformation layer needed.
@@ -152,24 +148,37 @@ Deployed on Vercel. Set `NEXT_PUBLIC_API_URL` to the Render backend URL in the V
 NEXT_PUBLIC_API_URL=https://zoom-clone-backend-10c4.onrender.com
 ```
 
----
+> If the live app still calls `localhost`, this variable is the cause —
+> redeploy after setting it. The backend auto-seeds on startup, so no manual
+> seeding step is needed on the deployed instance.
 
 ## Assumptions & Notes
 
 **Assumptions:**
-- No auth implemented per brief — single default user (`ketan.arora019@gmail.com` via `GET /api/me`) is treated as logged in. 
-- Real-time media (WebRTC) is out of scope per guide; the room uses local camera preview + screen share, and presence is tracked via participant rows polled every 5s. 
-- Invite links embed API URL at creation, so it must be set before creating meetings in production.
+
+- No auth implemented per brief — single default user (ketan.arora019@gmail.com via `GET /api/me`) is treated as logged in.
+- Real-time media (WebRTC) is out of scope per guide; the room uses local camera preview + screen share, and presence is tracked via participant rows polled every 5s.
+- Invite links embed the backend's `BASE_URL` at creation, so it must be set to the production domain before creating meetings there.
+- `NEXT_PUBLIC_API_URL` is baked at build time — set it before deploying.
 
 **Mocked/seeded data:**
+
 - DB auto-seeds idempotently on startup (5 users, 2 active + 5 upcoming + 4 ended meetings with participants).
-- Chat messages, reactions, and host-tool toggles are client-side demo state and are not persisted. 
+- Chat messages, reactions, and host-tool toggles are client-side demo state and are not persisted.
 - Personal Meeting ID is deterministically derived from the user ID.
 
 **Notes:**
+
 - All dashboard/room data is live from the FastAPI + SQLite backend (no hardcoded meetings).
-- Joining an ended meeting returns `410` with a dedicated "meeting has ended" screen.
+- Joining an ended meeting returns 410 with a dedicated "meeting has ended" screen.
 - Host controls (mute-all, remove, admit) are fully wired end-to-end.
+
+## Known Limitations / Future Improvements
+
+- No WebRTC media server; chat/reactions are local-only.
+- No edit-meeting form in the UI (API supports `PATCH`).
+- Participant list polls every 5s — replace with WebSocket push.
+- No automated frontend tests yet.
 
 ---
 

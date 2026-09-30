@@ -6,7 +6,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import { useCreateMeeting } from "@/lib/hooks";
 import { format, addMinutes } from "date-fns";
 import { Calendar, Clock, Loader2, Check, Copy } from "lucide-react";
-import { formatMeetingId, isFutureDateTime } from "@/lib/utils";
+import { formatMeetingId, isFutureDateTime, urlMeetingId } from "@/lib/utils";
 import { ApiError } from "@/lib/api";
 
 const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120];
@@ -135,7 +135,7 @@ export default function SchedulePage() {
                 Copy Invite
               </button>
               <button
-                onClick={() => router.push(`/launch/${created.meetingId}`)}
+                onClick={() => router.push(`/launch/${urlMeetingId(created.meetingId)}`)}
                 className="flex-1 py-2.5 bg-[#0b6bde] text-white rounded-xl text-[13px] font-semibold hover:bg-[#0047cc] transition-colors"
               >
                 Open Meeting

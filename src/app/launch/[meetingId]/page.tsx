@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useMeeting, useEndMeeting, useMeetingParticipants } from "@/lib/hooks";
-import { formatMeetingId } from "@/lib/utils";
+import { formatMeetingId, urlMeetingId } from "@/lib/utils";
 import { format } from "date-fns";
 import {
   Copy,
@@ -20,9 +20,12 @@ import { useState } from "react";
 export default function LaunchPage() {
   const { meetingId } = useParams<{ meetingId: string }>();
   const router = useRouter();
+  // Route params may arrive grouped ("353 039 4831") from old links —
+  // always talk to the API with compact digits.
+  const apiId = urlMeetingId(meetingId ?? "");
   const [copied, setCopied] = useState(false);
-  const { data: meeting, isLoading } = useMeeting(meetingId);
-  const { data: participants = [] } = useMeetingParticipants(meetingId, !!meeting);
+  const { data: meeting, isLoading } = useMeeting(apiId);
+  const { data: participants = [] } = useMeetingParticipants(apiId, !!meeting);
   const endMeeting = useEndMeeting();
 
   const copyInvite = () => {
@@ -37,10 +40,10 @@ export default function LaunchPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleStart = () => router.push(`/room/${meetingId}`);
+  const handleStart = () => router.push(`/room/${apiId}`);
 
   const handleEnd = async () => {
-    await endMeeting.mutateAsync(meetingId);
+    await endMeeting.mutateAsync(apiId);
     router.push("/meetings");
   };
 

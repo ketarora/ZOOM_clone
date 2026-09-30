@@ -5,6 +5,15 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Compact ID for use in URLs — plain digits, no spaces.
+ * Display with formatMeetingId(), route with this. Spaces in route params
+ * get percent-encoded and break lookups, so URLs must always be compact.
+ */
+export function urlMeetingId(raw: string): string {
+  return compactMeetingId(raw ?? "");
+}
+
 /** Format meeting ID string as "XXX XXX XXXX". */
 export function formatMeetingId(raw: string): string {
   const digits = raw.replace(/\D/g, "");
