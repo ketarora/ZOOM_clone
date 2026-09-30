@@ -7,7 +7,7 @@ import {
   useCallback,
   type RefCallback,
 } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import {
   useEndMeeting,
   useLeaveMeeting,
@@ -22,8 +22,8 @@ import { setActiveMeetingId, clearActiveMeeting, getActiveMeetingId } from "@/li
 import {
   Mic, MicOff, Video, VideoOff, PhoneOff, Users, MessageCircle, Heart,
   Monitor, MoreHorizontal, ShieldCheck, ChevronUp, X, Send, Maximize2,
-  LayoutGrid, Hand, Shield, Settings, RotateCcw, Check, Copy, Loader2,
-  VolumeX, UserX, Info, Paperclip,
+  LayoutGrid, Hand, Shield, Settings, Check, Copy, Loader2,
+  VolumeX, UserX, Info, Paperclip, Home, Search, Bell, Upload,
 } from "lucide-react";
 
 interface ChatMessage {
@@ -65,6 +65,7 @@ function MiniToggle({ value, onChange }: { value: boolean; onChange: (v: boolean
 export default function MeetingRoomPage() {
   const { meetingId } = useParams<{ meetingId: string }>();
   const router = useRouter();
+  const pathname = usePathname();
 
   // ── Core state ──────────────────────────────────────────────────────────
   const [phase, setPhase] = useState<"joining" | "active" | "ended">("joining");
@@ -89,6 +90,21 @@ export default function MeetingRoomPage() {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showViewMenu, setShowViewMenu] = useState(false);
   const [showInfoPanel, setShowInfoPanel] = useState(false);
+  // Anchored popup position: each toolbar popup opens directly above its
+  // own button (Zoom parity). Measured from the clicked button's rect.
+  const [popupAnchor, setPopupAnchor] = useState<{ key: "react" | "more" | "host"; left: number } | null>(null);
+
+  const POPUP_W = { react: 288, more: 312, host: 330 };
+
+  const openAbove = (key: "react" | "more" | "host", el: HTMLElement | null) => {
+    if (!el || typeof window === "undefined") return;
+    const r = el.getBoundingClientRect();
+    const w = POPUP_W[key];
+    setPopupAnchor({
+      key,
+      left: Math.max(8, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - 8)),
+    });
+  };
   const [viewMode, setViewMode] = useState<"speaker" | "gallery" | "multi">("speaker");
   const [captionsOn, setCaptionsOn] = useState(false);
   const [incomingVideoOff, setIncomingVideoOff] = useState(false);
@@ -416,7 +432,33 @@ export default function MeetingRoomPage() {
         </div>
       )}
 
-      {/* ── Top bar ──────────────────────────────────────────────────────── */}
+      {/* ── Zoom web chrome (white top strip) ──────────────────────────── */}
+      <div className="h-14 bg-white flex items-center justify-between px-4 sm:px-6 shrink-0 z-30 border-b border-[#ebebeb]">
+        <div className="flex items-center gap-5">
+          <button onClick={() => router.push("/")} className="flex items-center gap-2 select-none" title="Home">
+            <span className="text-[#0B5CFF] font-bold text-[22px] tracking-tight">zoom</span>
+            <span className="text-[#1a1a1a] text-[15px] font-medium hidden sm:inline">Workplace</span>
+          </button>
+          <button onClick={() => router.push("/meetings")} className="hidden md:flex items-center gap-2 bg-[#f0f2f5] hover:bg-[#e4e7ec] transition-colors rounded-lg px-4 py-1.5 text-[13px] text-[#666]">
+            <Search size={14} />
+            Search
+          </button>
+        </div>
+        <div className="flex items-center gap-3 sm:gap-4">
+          <span className="hidden lg:block text-[13px] text-[#444]">Admin Center</span>
+          <span className="hidden lg:block text-[13px] text-[#0B5CFF] font-medium">Download</span>
+          <span title="Included in this demo" className="hidden sm:block px-3.5 py-1.5 bg-[#0B5CFF] text-white text-[13px] font-semibold rounded-full select-none">Upgrade</span>
+          <button onClick={() => router.push("/profile")} className="relative text-[#555] hover:text-[#111] transition-colors" title="Notifications">
+            <Bell size={17} />
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-[#e03e3e] rounded-full" />
+          </button>
+          <button onClick={() => router.push("/profile")} className="w-7 h-7 rounded-full bg-[#E05B2B] text-white text-[12px] font-bold flex items-center justify-center" title="Profile">
+            {(me?.displayName?.[0] ?? "K").toUpperCase()}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Meeting bar ──────────────────────────────────────────────────── */}
       <div className="h-10 px-4 flex items-center justify-between text-white bg-black/50 backdrop-blur-sm shrink-0 z-30">
         <div className="flex items-center gap-2 bg-black/60 px-3 py-1 rounded-lg max-w-[260px]">
           <Info size={13} className="text-white/70 shrink-0" />
@@ -434,7 +476,7 @@ export default function MeetingRoomPage() {
             <ShieldCheck size={16} className="text-[#23d85d]" />
           </button>
 
-          <span className="text-[13px] font-mono text-[#666]">{formatElapsed(elapsed)}</span>
+          <span title="Zoom" className="text-[10px] font-bold text-white/70 bg-white/10 rounded-full w-6 h-6 flex items-center justify-center select-none">zm</span>
 
           {/* View dropdown */}
           <div className="relative">
@@ -542,6 +584,55 @@ export default function MeetingRoomPage() {
 
       {/* ── Main viewport ─────────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
+        {/* ── Left icon rail (Zoom web parity — navigating away shows the mini-window) ── */}
+        <nav className="hidden sm:flex w-[68px] bg-white flex-col items-center py-3 gap-1 shrink-0 border-r border-[#ebebeb] z-20">
+          {[
+            { label: "Home", href: "/" as string | null, icon: <Home size={20} /> },
+            { label: "Chat", href: null as string | null, icon: <MessageCircle size={20} /> },
+            { label: "Meetings", href: "/meetings" as string | null, icon: <Video size={20} /> },
+            { label: "Contacts", href: null as string | null, icon: <Users size={20} /> },
+          ].map((item) => {
+            const isActive =
+              item.href !== null &&
+              (item.href === "/" ? pathname === "/" : pathname?.startsWith(item.href));
+            const inner = (
+              <>
+                {item.icon}
+                <span className="text-[10px] font-medium leading-none">{item.label}</span>
+              </>
+            );
+            return item.href ? (
+              <button
+                key={item.label}
+                onClick={() => router.push(item.href as string)}
+                className={`w-14 py-2 rounded-xl flex flex-col items-center gap-1.5 transition-colors ${
+                  isActive ? "text-[#0B5CFF] bg-[#eef5ff]" : "text-[#666] hover:bg-[#f0f2f5]"
+                }`}
+              >
+                {inner}
+              </button>
+            ) : (
+              <div
+                key={item.label}
+                title="Coming soon"
+                className="w-14 py-2 rounded-xl flex flex-col items-center gap-1.5 text-[#bbb] cursor-not-allowed"
+              >
+                {inner}
+              </div>
+            );
+          })}
+          <div className="mt-auto">
+            <button
+              onClick={() => router.push("/settings")}
+              className={`w-14 py-2 rounded-xl flex flex-col items-center gap-1.5 transition-colors ${
+                pathname?.startsWith("/settings") ? "text-[#0B5CFF] bg-[#eef5ff]" : "text-[#666] hover:bg-[#f0f2f5]"
+              }`}
+            >
+              <Settings size={20} />
+              <span className="text-[10px] font-medium leading-none">Settings</span>
+            </button>
+          </div>
+        </nav>
         {/* Video area */}
         <div className="flex-1 relative bg-[#1c1c1c] flex items-center justify-center">
           {screenSharing && screenStream ? (
@@ -730,57 +821,59 @@ export default function MeetingRoomPage() {
       </div>
 
       {/* ── Floating popups (fixed: escape the scrollable toolbar so they never clip) ── */}
-      {showReactionPicker && (
-        <div className="fixed bottom-[88px] left-1/2 -translate-x-1/2 bg-[#2d2d2d] border border-white/10 rounded-2xl px-4 py-3 flex gap-2.5 shadow-2xl z-[60]" onClick={(e) => e.stopPropagation()}>
+      {showReactionPicker && popupAnchor?.key === "react" && (
+        <div className="fixed bottom-[88px] z-50 bg-[#2d2d2d] border border-white/10 rounded-2xl px-4 py-3 flex gap-2.5 shadow-2xl" style={{ left: popupAnchor.left, width: POPUP_W.react }} onClick={(e) => e.stopPropagation()}>
           {REACTIONS.map((emoji) => (
             <button key={emoji} onClick={() => fireReaction(emoji)} className="text-2xl hover:scale-125 transition-transform leading-none">{emoji}</button>
           ))}
         </div>
       )}
-      {showMoreMenu && (
-        <div className="fixed bottom-[88px] right-3 sm:right-6 bg-[#2d2d2d] border border-white/10 rounded-xl shadow-2xl z-[60] w-56 py-2" onClick={(e) => e.stopPropagation()}>
-          <button onClick={() => { setCaptionsOn((v) => !v); setShowMoreMenu(false); }}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#ccc] hover:bg-white/10 transition-colors">
-            <span className="w-7 h-5 border border-[#666] rounded text-[9px] flex items-center justify-center text-[#aaa] shrink-0 font-bold">CC</span>
-            <span>{captionsOn ? "Hide Captions" : "Captions"}</span>
-          </button>
-          <button onClick={() => setShowMoreMenu(false)}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#ccc] hover:bg-white/10 transition-colors">
-            <LayoutGrid size={16} className="text-[#aaa] shrink-0" />
-            <span>Breakout Rooms</span>
-          </button>
-          <div className="border-t border-white/10 my-1" />
-          <button onClick={() => setShowMoreMenu(false)}
-            className="w-full flex items-center justify-between px-4 py-2.5 text-[13px] text-[#ccc] hover:bg-white/10 transition-colors">
-            <div className="flex items-center gap-3">
-              <Monitor size={16} className="text-[#aaa] shrink-0" />
-              <span>Whiteboards</span>
-            </div>
-            <ChevronUp size={11} className="rotate-90 text-[#666]" />
-          </button>
-          <div className="border-t border-white/10 my-1" />
-          <button onClick={() => { toggleFullscreen(); setShowMoreMenu(false); }}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#ccc] hover:bg-white/10 transition-colors">
-            <Settings size={16} className="text-[#aaa] shrink-0" />
-            <span>Settings</span>
-          </button>
-          <button onClick={() => { setIncomingVideoOff((v) => !v); setShowMoreMenu(false); }}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#ccc] hover:bg-white/10 transition-colors">
-            <VideoOff size={16} className="text-[#aaa] shrink-0" />
-            <span>{incomingVideoOff ? "Start Incoming Video" : "Stop Incoming Video"}</span>
-          </button>
-          <div className="border-t border-white/10 my-1" />
-          <button onClick={() => setShowMoreMenu(false)}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-[#ccc] hover:bg-white/10 transition-colors">
-            <RotateCcw size={16} className="text-[#aaa] shrink-0" />
-            <span>Reset to default</span>
-          </button>
+      {showMoreMenu && popupAnchor?.key === "more" && (
+        <div className="fixed bottom-[88px] z-50 bg-[#2d2d2d] border border-white/10 rounded-xl shadow-2xl" style={{ left: popupAnchor.left, width: POPUP_W.more }} onClick={(e) => e.stopPropagation()}>
+          <div className="grid grid-cols-3 gap-1 p-2">
+            <button onClick={() => { setCaptionsOn((v) => !v); setShowMoreMenu(false); }}
+              className="flex flex-col items-center gap-1.5 py-2.5 rounded-lg hover:bg-white/10 transition-colors">
+              <span className="w-7 h-5 border border-[#888] rounded text-[9px] flex items-center justify-center text-[#ccc] font-bold">CC</span>
+              <span className="text-[11px] text-[#ddd] text-center leading-tight">{captionsOn ? "Hide Captions" : "Show Captions"}</span>
+            </button>
+            <button onClick={() => setShowMoreMenu(false)} title="Coming soon"
+              className="flex flex-col items-center gap-1.5 py-2.5 rounded-lg hover:bg-white/10 transition-colors">
+              <LayoutGrid size={20} className="text-[#ddd]" />
+              <span className="text-[11px] text-[#ddd] text-center leading-tight">Breakout Rooms</span>
+            </button>
+            <button onClick={() => setShowMoreMenu(false)} title="Coming soon"
+              className="flex flex-col items-center gap-1.5 py-2.5 rounded-lg hover:bg-white/10 transition-colors">
+              <Monitor size={20} className="text-[#ddd]" />
+              <span className="text-[11px] text-[#ddd] text-center leading-tight">Whiteboards</span>
+            </button>
+            <button onClick={() => setShowMoreMenu(false)} title="Coming soon"
+              className="flex flex-col items-center gap-1.5 py-2.5 rounded-lg hover:bg-white/10 transition-colors">
+              <Settings size={20} className="text-[#ddd]" />
+              <span className="text-[11px] text-[#ddd] text-center leading-tight">Settings</span>
+            </button>
+            <button onClick={() => { setIncomingVideoOff((v) => !v); setShowMoreMenu(false); }}
+              className="flex flex-col items-center gap-1.5 py-2.5 rounded-lg hover:bg-white/10 transition-colors col-span-2">
+              <VideoOff size={20} className="text-[#ddd]" />
+              <span className="text-[11px] text-[#ddd] text-center leading-tight">{incomingVideoOff ? "Start Incoming Video" : "Stop Incoming Video"}</span>
+            </button>
+          </div>
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-white/10">
+            <button
+              onClick={() => { setCaptionsOn(false); setIncomingVideoOff(false); setShowMoreMenu(false); }}
+              className="text-[12px] text-[#aaa] hover:text-white transition-colors"
+            >
+              Reset to default
+            </button>
+            <button onClick={() => setShowMoreMenu(false)} className="text-[12px] font-medium text-[#5b9eff] hover:text-white transition-colors">
+              Reset
+            </button>
+          </div>
         </div>
       )}
 
       {/* ── Host Tools popup (Zoom: anchored panel above the toolbar) ─────── */}
-      {panel === "security" && (
-        <div className="fixed bottom-[88px] left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:right-[380px] bg-[#1e1e1e] border border-white/10 rounded-xl shadow-2xl z-50 w-[320px] p-4 max-h-[60vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      {panel === "security" && popupAnchor?.key === "host" && (
+        <div className="fixed bottom-[88px] z-50 bg-[#1e1e1e] border border-white/10 rounded-xl shadow-2xl p-4 max-h-[60vh] overflow-y-auto" style={{ left: popupAnchor.left, width: POPUP_W.host }} onClick={(e) => e.stopPropagation()}>
           {[
             { label: "Lock Meeting", value: lockMeeting, setter: setLockMeeting },
             { label: "Enable waiting room", value: waitingRoomOn, setter: setWaitingRoomOn },
@@ -822,25 +915,27 @@ export default function MeetingRoomPage() {
       <div className="min-h-[72px] bg-black/80 backdrop-blur-md text-white flex items-center justify-between gap-2 px-3 sm:px-6 py-2 border-t border-white/10 shrink-0 z-30 relative">
         {/* Left */}
         <div className="flex items-center gap-1 shrink-0">
-          <ControlBtn icon={micOn ? <Mic size={20} /> : <MicOff size={20} className="text-[#ff3b30]" />} label={micOn ? "Mute" : "Unmute"} onClick={toggleMic} />
-          <ControlBtn icon={cameraOn ? <Video size={20} /> : <VideoOff size={20} className="text-[#ff3b30]" />} label={cameraOn ? "Stop Video" : "Start Video"} onClick={toggleCamera} />
+          <ControlBtn caret icon={micOn ? <Mic size={20} /> : <MicOff size={20} className="text-[#ff3b30]" />} label={micOn ? "Mute" : "Unmute"} onClick={toggleMic} />
+          <ControlBtn caret icon={cameraOn ? <Video size={20} /> : <VideoOff size={20} className="text-[#ff3b30]" />} label={cameraOn ? "Stop Video" : "Start Video"} onClick={toggleCamera} />
         </div>
 
         {/* Center — horizontally scrollable on small screens */}
         <div className="flex items-center gap-1 overflow-x-auto flex-1 sm:flex-none justify-start sm:justify-center sm:absolute sm:left-1/2 sm:-translate-x-1/2 py-1">
-          <ControlBtn icon={<Shield size={20} />} label="Host Tools" onClick={() => { setPanel(panel === "security" ? "none" : "security"); setShowMoreMenu(false); setShowReactionPicker(false); }} active={panel === "security"} />
+          <ControlBtn icon={<Shield size={20} />} label="Host Tools" onClick={(e?: React.MouseEvent) => { e?.stopPropagation(); const opening = panel !== "security"; setPanel(opening ? "security" : "none"); setShowMoreMenu(false); setShowReactionPicker(false); if (opening && e) openAbove("host", e.currentTarget as HTMLElement); }} active={panel === "security"} />
           <ControlBtn badge={waitingParticipants.length} icon={<Users size={20} />} label="Participants" onClick={() => setPanel(panel === "participants" ? "none" : "participants")} active={panel === "participants"} />
           <ControlBtn icon={<MessageCircle size={20} />} label="Chat" onClick={() => setPanel(panel === "chat" ? "none" : "chat")} active={panel === "chat"} />
-          <ControlBtn caret icon={<Heart size={20} />} label="React" onClick={(e?: React.MouseEvent) => { e?.stopPropagation(); setShowReactionPicker((v) => !v); setShowMoreMenu(false); }} active={showReactionPicker} />
-          <ControlBtn caret icon={<Monitor size={20} className="text-[#23d85d]" />} label={screenSharing ? "Stop Share" : "Share"} onClick={toggleScreen} active={screenSharing} />
+          <ControlBtn caret icon={<Heart size={20} />} label="React" onClick={(e?: React.MouseEvent) => { e?.stopPropagation(); const opening = !showReactionPicker; setShowReactionPicker(opening); setShowMoreMenu(false); if (opening && e) openAbove("react", e.currentTarget as HTMLElement); }} active={showReactionPicker} />
+          <ControlBtn caret icon={<Upload size={20} className="text-[#23d85d]" />} label={screenSharing ? "Stop Share" : "Share"} onClick={toggleScreen} active={screenSharing} />
           <ControlBtn icon={<Hand size={20} className={handRaised ? "text-[#fe7521]" : ""} />} label={handRaised ? "Lower Hand" : "Raise Hand"} onClick={() => setHandRaised((v) => !v)} active={handRaised} />
-          <ControlBtn caret icon={<MoreHorizontal size={20} />} label="More" onClick={(e?: React.MouseEvent) => { e?.stopPropagation(); setShowMoreMenu((v) => !v); setShowViewMenu(false); setShowInfoPanel(false); setShowReactionPicker(false); }} active={showMoreMenu} />
+          <ControlBtn caret icon={<MoreHorizontal size={20} />} label="More" onClick={(e?: React.MouseEvent) => { e?.stopPropagation(); const opening = !showMoreMenu; setShowMoreMenu(opening); setShowViewMenu(false); setShowInfoPanel(false); setShowReactionPicker(false); if (opening && e) openAbove("more", e.currentTarget as HTMLElement); }} active={showMoreMenu} />
         </div>
 
-        {/* Right */}
-        <button onClick={() => setShowEndDialog(true)} className="flex items-center gap-2 px-5 py-2 bg-[#e03e3e] hover:bg-[#c0392b] rounded-xl transition-colors font-semibold text-[14px]">
-          <PhoneOff size={18} />
-          End
+        {/* Right — Zoom-style End (red mark + label) */}
+        <button onClick={() => setShowEndDialog(true)} className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl hover:bg-[#e03e3e]/20 transition-colors group shrink-0">
+          <span className="w-7 h-7 rounded-lg bg-[#e03e3e] group-hover:bg-[#c0392b] flex items-center justify-center transition-colors">
+            <X size={16} className="text-white" strokeWidth={2.5} />
+          </span>
+          <span className="text-[10px] font-medium text-white/70 group-hover:text-white whitespace-nowrap">End</span>
         </button>
       </div>
 
@@ -890,14 +985,16 @@ function ControlBtn({
   return (
     <button onClick={onClick}
       className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-colors group shrink-0 ${active ? "bg-white/15" : "hover:bg-white/10"}`}>
-      <span className="relative flex items-center gap-1 h-5">
-        {icon}
-        {caret && <ChevronUp size={11} className="text-white/40 group-hover:text-white/70 shrink-0" />}
-        {typeof badge === "number" && badge > 0 && (
-          <span className="absolute -top-1.5 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-white/25 text-white text-[9px] font-bold flex items-center justify-center">
-            {badge}
-          </span>
-        )}
+      <span className="flex items-start gap-1 h-5">
+        <span className="relative leading-none">
+          {icon}
+          {typeof badge === "number" && badge > 0 && (
+            <span className="absolute -top-2 -right-2.5 min-w-[15px] h-[15px] px-0.5 rounded-full bg-white/30 text-white text-[9px] font-bold flex items-center justify-center">
+              {badge}
+            </span>
+          )}
+        </span>
+        {caret && <ChevronUp size={11} className="mt-1 text-white/40 group-hover:text-white/70 shrink-0" />}
       </span>
       <span className="text-[10px] font-medium text-white/70 group-hover:text-white whitespace-nowrap">{label}</span>
     </button>
