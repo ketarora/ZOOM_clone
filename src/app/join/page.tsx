@@ -56,9 +56,30 @@ export default function JoinPage() {
     };
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const toggleCamera = () => {
-    stream?.getVideoTracks().forEach((t) => (t.enabled = !cameraOn));
-    setCameraOn((v) => !v);
+  // Real device stop (light off), re-acquire on start — same as the room,
+  // so off→on always comes back perfectly.
+  const toggleCamera = async () => {
+    if (cameraOn) {
+      stream?.getVideoTracks().forEach((t) => t.stop());
+      setCameraOn(false);
+      return;
+    }
+    try {
+      if (stream) {
+        stream.getVideoTracks().filter((t) => t.readyState === "ended").forEach((t) => stream.removeTrack(t));
+        const s = await navigator.mediaDevices.getUserMedia({ video: true });
+        const [vt] = s.getVideoTracks();
+        if (vt) stream.addTrack(vt);
+        setCameraOn(true);
+      } else {
+        const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        if (!micOn) s.getAudioTracks().forEach((t) => (t.enabled = false));
+        setStream(s);
+        setCameraOn(true);
+      }
+    } catch {
+      // camera stays off — user can retry
+    }
   };
   const toggleMic = () => {
     stream?.getAudioTracks().forEach((t) => (t.enabled = !micOn));

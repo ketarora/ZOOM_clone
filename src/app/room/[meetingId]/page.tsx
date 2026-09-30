@@ -137,11 +137,36 @@ export default function MeetingRoomPage() {
   const screenRef = useVideoRef(screenStream);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
-  // ── Init ────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const timer = setTimeout(() => setPhase("active"), 1800);
-    return () => clearTimeout(timer);
-  }, []);
+  // ── Permission gate ─────────────────────────────────────────────────────
+  // No silent auto-request: the user explicitly chooses first (Zoom parity),
+  // so the browser permission prompt reliably appears on a real gesture.
+  // Denied/blocked devices land back on the gate with guidance instead of
+  // a broken room.
+  const [gateError, setGateError] = useState("");
+
+  const requestMediaAndJoin = async () => {
+    setGateError("");
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      setCameraStream(s);
+      setCameraOn(true);
+      setMicOn(true);
+      setPhase("active");
+    } catch {
+      setGateError(
+        "Couldn't access your camera or microphone. Allow access in the browser address bar, or continue without them."
+      );
+    }
+  };
+
+  const joinWithoutMedia = () => {
+    cameraStream?.getTracks().forEach((t) => t.stop());
+    setCameraStream(null);
+    setCameraOn(false);
+    setMicOn(false);
+    setGateError("");
+    setPhase("active");
+  };
 
   // Register presence ONLY once the backend confirms the meeting is live.
   // (Storing on timer alone created ghost "Back to Meeting" entries for
@@ -161,12 +186,13 @@ export default function MeetingRoomPage() {
     }
   }, [meetingError, meeting, apiId]);
 
-  useEffect(() => {
-    if (phase !== "active") return;
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-      .then(setCameraStream)
-      .catch(() => setCameraOn(false));
-  }, [phase]);
+  // Drop ended device tracks before merging a fresh one — otherwise the
+  // <video> element can keep rendering the dead (black) track.
+  const pruneEndedVideoTracks = (s: MediaStream) => {
+    s.getVideoTracks()
+      .filter((t) => t.readyState === "ended")
+      .forEach((t) => s.removeTrack(t));
+  };
 
   useEffect(() => {
     return () => {
@@ -186,14 +212,58 @@ export default function MeetingRoomPage() {
   }, [chatMessages]);
 
   // ── Media controls ──────────────────────────────────────────────────────
-  const toggleMic = () => {
-    cameraStream?.getAudioTracks().forEach((t) => (t.enabled = !micOn));
-    setMicOn((v) => !v);
+  // Mic: muting flips the live track; unmuting with no stream re-acquires.
+  const toggleMic = async () => {
+    if (micOn) {
+      cameraStream?.getAudioTracks().forEach((t) => (t.enabled = false));
+      setMicOn(false);
+      return;
+    }
+    const live = cameraStream?.getAudioTracks().filter((t) => t.readyState === "live") ?? [];
+    if (live.length > 0) {
+      live.forEach((t) => (t.enabled = true));
+      setMicOn(true);
+      return;
+    }
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const [at] = s.getAudioTracks();
+      if (cameraStream && at) {
+        cameraStream.addTrack(at);
+      } else if (at) {
+        setCameraStream(new MediaStream([at]));
+      }
+      setMicOn(true);
+    } catch {
+      // mic stays muted — user can retry
+    }
   };
 
-  const toggleCamera = () => {
-    cameraStream?.getVideoTracks().forEach((t) => (t.enabled = !cameraOn));
-    setCameraOn((v) => !v);
+  // Camera: OFF fully stops the device (light goes off — real privacy, not
+  // just a black frame). ON re-acquires a fresh track and merges it, so
+  // off→on always comes back perfectly.
+  const toggleCamera = async () => {
+    if (cameraOn) {
+      cameraStream?.getVideoTracks().forEach((t) => t.stop());
+      setCameraOn(false);
+      return;
+    }
+    try {
+      if (cameraStream) {
+        pruneEndedVideoTracks(cameraStream);
+        const s = await navigator.mediaDevices.getUserMedia({ video: true });
+        const [vt] = s.getVideoTracks();
+        if (vt) cameraStream.addTrack(vt);
+        setCameraOn(true);
+      } else {
+        const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        if (!micOn) s.getAudioTracks().forEach((t) => (t.enabled = false));
+        setCameraStream(s);
+        setCameraOn(true);
+      }
+    } catch {
+      // camera stays off — user can retry
+    }
   };
 
   const toggleScreen = async () => {
@@ -365,13 +435,51 @@ export default function MeetingRoomPage() {
     );
   }
 
-  // ── Joining spinner ───────────────────────────────────────────────────────
+  // ── Joining: spinner while validating, then the permission gate ────────
+  // (Reached only for a valid, live meeting — not-found/ended returned above.)
   if (phase === "joining") {
+    if (meetingLoading) {
+      return (
+        <div className="fixed inset-0 bg-[#1a1a1a] flex flex-col items-center justify-center">
+          <div className="w-12 h-12 border-4 border-[#3d3d3d] border-t-[#0b6bde] rounded-full animate-spin mb-5" />
+          <p className="text-white text-[16px] font-semibold">Joining Meeting…</p>
+          <p className="text-[#666] text-[13px] mt-2 font-mono">{formatMeetingId(meetingId)}</p>
+        </div>
+      );
+    }
     return (
-      <div className="fixed inset-0 bg-[#1a1a1a] flex flex-col items-center justify-center">
-        <div className="w-12 h-12 border-4 border-[#3d3d3d] border-t-[#0b6bde] rounded-full animate-spin mb-5" />
-        <p className="text-white text-[16px] font-semibold">Joining Meeting…</p>
-        <p className="text-[#666] text-[13px] mt-2 font-mono">{formatMeetingId(meetingId)}</p>
+      <div className="fixed inset-0 bg-[#1a1a1a] flex items-center justify-center p-6">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 text-center">
+          <div className="w-16 h-16 bg-[#eef5ff] rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Video size={30} className="text-[#0B5CFF]" />
+          </div>
+          <h2 className="text-[18px] font-bold text-[#1a1a1a]">
+            Do you want people to see you in the meeting?
+          </h2>
+          <p className="text-[14px] font-medium text-[#333] mt-1">{meeting?.title}</p>
+          <p className="text-[12px] font-mono text-[#888] mt-0.5 mb-2">{formatMeetingId(meetingId)}</p>
+          <p className="text-[13px] text-[#666] mb-6">
+            You can still turn off your microphone and camera anytime in the meeting.
+          </p>
+          {gateError && (
+            <p role="alert" className="text-[12px] text-[#e03e3e] bg-[#fff0f0] border border-[#f5c2c2] rounded-xl px-3 py-2 mb-3">
+              {gateError}
+            </p>
+          )}
+          <button
+            onClick={requestMediaAndJoin}
+            className="w-full py-3 bg-[#0B5CFF] text-white text-[14px] font-semibold rounded-xl hover:bg-[#0047cc] transition-colors flex items-center justify-center gap-2"
+          >
+            <Video size={15} />
+            Use microphone and camera
+          </button>
+          <button
+            onClick={joinWithoutMedia}
+            className="w-full mt-2 py-1.5 text-[13px] text-[#0B5CFF] hover:underline transition-colors"
+          >
+            Continue without microphone and camera
+          </button>
+        </div>
       </div>
     );
   }

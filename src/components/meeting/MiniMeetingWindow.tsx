@@ -62,10 +62,30 @@ export default function MiniMeetingWindow({ meetingId, displayName, onHide }: Pr
     setMicOn((v) => !v);
   };
 
-  const toggleCamera = (e: React.MouseEvent) => {
+  // Real device stop (light off), re-acquire on start — same as the room.
+  const toggleCamera = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    stream?.getVideoTracks().forEach((t) => (t.enabled = !cameraOn));
-    setCameraOn((v) => !v);
+    if (cameraOn) {
+      stream?.getVideoTracks().forEach((t) => t.stop());
+      setCameraOn(false);
+      return;
+    }
+    try {
+      if (stream) {
+        stream.getVideoTracks().filter((t) => t.readyState === "ended").forEach((t) => stream.removeTrack(t));
+        const s = await navigator.mediaDevices.getUserMedia({ video: true });
+        const [vt] = s.getVideoTracks();
+        if (vt) stream.addTrack(vt);
+        setCameraOn(true);
+      } else {
+        const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        if (!micOn) s.getAudioTracks().forEach((t) => (t.enabled = false));
+        setStream(s);
+        setCameraOn(true);
+      }
+    } catch {
+      // camera stays off — user can retry
+    }
   };
 
   // ── Drag anywhere on the window ──────────────────────────────────────────
