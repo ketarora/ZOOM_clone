@@ -1,10 +1,15 @@
 # ZoomConnect — Frontend
 
+![Next.js](https://img.shields.io/badge/Next.js%2015-black?style=for-the-badge&logo=next.js&logoColor=white) 
+![React](https://img.shields.io/badge/React%2019-20232A?style=for-the-badge&logo=react&logoColor=61DAFB) 
+![Tailwind](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white) 
+![Vercel](https://img.shields.io/badge/Deployed_on-Vercel-black?style=for-the-badge&logo=vercel&logoColor=white)
+
 A full-featured video meeting web application built with Next.js 15 and React 19. The UI closely mirrors Zoom Workplace complete with a dashboard, meeting scheduler, live meeting room with media controls, waiting room flow, participant management, and real-time chat.
 
-**Live →** [zoom-clone-roan-delta.vercel.app](https://zoom-clone-roan-delta.vercel.app)  
+**Live →** [zoom-clone-nine-indol.vercel.app](https://zoom-clone-nine-indol.vercel.app/)  
 
-**Backend API →** [zoom-clone-backend-2.onrender.com](https://zoom-clone-backend-2.onrender.com)
+**Backend API →** [zoom-clone-backend-10c4.onrender.com](https://zoom-clone-backend-10c4.onrender.com)
 
 **Backend Repo →** [zoom-clone-backend](https://github.com/ketarora/ZOOM_clone_backend/tree/main)
 
@@ -75,8 +80,8 @@ src/
 ## Getting Started
 
 ```bash
-git clone https://github.com/ketarora/zoom__clone.git
-cd zoom__clone
+git clone https://github.com/ketarora/ZOOM_clone.git
+cd ZOOM_clone
 
 npm install
 
@@ -144,8 +149,27 @@ nullable `participants.user_id`, live `participant_count` as a SQL subquery
 Deployed on Vercel. Set `NEXT_PUBLIC_API_URL` to the Render backend URL in the Vercel environment variables dashboard.
 
 ```
-NEXT_PUBLIC_API_URL=https://zoom-clone-backend-2.onrender.com
+NEXT_PUBLIC_API_URL=https://zoom-clone-backend-10c4.onrender.com
 ```
+
+---
+
+## Assumptions & Notes
+
+**Assumptions:**
+- No auth implemented per brief — single default user (`ketan.arora019@gmail.com` via `GET /api/me`) is treated as logged in. 
+- Real-time media (WebRTC) is out of scope per guide; the room uses local camera preview + screen share, and presence is tracked via participant rows polled every 5s. 
+- Invite links embed API URL at creation, so it must be set before creating meetings in production.
+
+**Mocked/seeded data:**
+- DB auto-seeds idempotently on startup (5 users, 2 active + 5 upcoming + 4 ended meetings with participants).
+- Chat messages, reactions, and host-tool toggles are client-side demo state and are not persisted. 
+- Personal Meeting ID is deterministically derived from the user ID.
+
+**Notes:**
+- All dashboard/room data is live from the FastAPI + SQLite backend (no hardcoded meetings).
+- Joining an ended meeting returns `410` with a dedicated "meeting has ended" screen.
+- Host controls (mute-all, remove, admit) are fully wired end-to-end.
 
 ---
 
